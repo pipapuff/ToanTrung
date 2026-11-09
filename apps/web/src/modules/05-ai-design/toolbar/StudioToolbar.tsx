@@ -43,11 +43,11 @@ export function StudioToolbar() {
   } = useStudio();
 
   return (
-    <div className="flex h-12 w-full shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-white px-3">
+    <div className="flex min-h-12 w-full shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b border-slate-200 bg-white px-3 py-1.5">
       {/* Left: Active Project Title, Quick Edit / Delete & Lead Reference */}
-      <div className="flex items-center gap-2 min-w-0 flex-1">
+      <div className="flex min-w-0 flex-1 items-center gap-2">
         <span
-          className="text-[15px] font-semibold text-slate-900 truncate max-w-[160px] xl:max-w-[260px]"
+          className="text-[15px] font-semibold text-slate-900 truncate max-w-[140px] lg:max-w-[190px] xl:max-w-[230px]"
           title={
             currentProject
               ? `${currentProject.projectName} · ${DESIGN_TYPE_LABELS[currentProject.designType]} · ${DESIGN_STATUS_LABELS[currentProject.status]}`
@@ -97,7 +97,7 @@ export function StudioToolbar() {
       <div
         role="tablist"
         aria-label="Khu vực làm việc Studio"
-        className="flex shrink-0 items-center gap-1 rounded-lg bg-slate-100 p-0.5 border border-slate-200"
+        className="flex shrink-0 items-center gap-0.5 rounded-lg border border-slate-200 bg-slate-100 p-0.5"
       >
         <button
           type="button"
@@ -108,7 +108,7 @@ export function StudioToolbar() {
             setActiveWorkspaceArea('perspective');
             setMobilePane('canvas');
           }}
-          className={`flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1 text-sm font-semibold transition ${
+          className={`flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
             activeWorkspaceArea === 'perspective'
               ? 'bg-[#1E3A8A] text-white shadow-xs'
               : 'text-slate-600 hover:bg-white hover:text-slate-900'
@@ -128,7 +128,7 @@ export function StudioToolbar() {
             setSideDockTab('assistant');
             setMobilePane('assistant');
           }}
-          className={`flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1 text-sm font-semibold transition ${
+          className={`flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
             activeWorkspaceArea === 'assistant'
               ? 'bg-[#1E3A8A] text-white shadow-xs'
               : 'text-slate-600 hover:bg-white hover:text-slate-900'
@@ -147,7 +147,7 @@ export function StudioToolbar() {
             setActiveWorkspaceArea('specs');
             setSideDockTab('specs');
           }}
-          className={`flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1 text-sm font-semibold transition ${
+          className={`flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
             activeWorkspaceArea === 'specs'
               ? 'bg-[#1E3A8A] text-white shadow-xs'
               : 'text-slate-600 hover:bg-white hover:text-slate-900'
@@ -159,7 +159,7 @@ export function StudioToolbar() {
       </div>
 
       {/* Right: Provider Status, Excel Export, ZIP Download & Approve Final */}
-      <div className="flex items-center gap-2 shrink-0">
+      <div className="flex shrink-0 items-center gap-1.5">
         <button
           type="button"
           onClick={toggleFocusCanvas}
@@ -192,7 +192,7 @@ export function StudioToolbar() {
             }
             setShowAiConfigModal(true);
           }}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50/80 px-2.5 py-1.5 text-xs font-semibold text-[#1E3A8A] shadow-2xs transition hover:bg-blue-100"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50/80 px-2 py-1.5 text-xs font-semibold text-[#1E3A8A] shadow-2xs transition hover:bg-blue-100"
           title="Bấm để chuyển đổi qua lại giữa nhiều con AI (Google Imagen 3, OpenAI GPT-Image-1, FLUX.1 Pro, Stability SD 3.5, Custom AI, Studio v3) hoặc cấu hình API Key"
         >
           <Cpu className="h-3.5 w-3.5 text-[#2563EB]" />
@@ -210,34 +210,42 @@ export function StudioToolbar() {
           </span>
         </button>
 
-        {canExport && (
-          <a
-            href="/api/v1/design/export"
-            className="hidden sm:inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 shadow-2xs transition hover:bg-slate-50"
-            title="Xuất báo cáo Excel Dự án & Kho ảnh (05_DuAn_AI_KhoAnh.xlsx)"
-          >
-            <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
-            <span className="hidden 2xl:inline">Xuất Excel</span>
-          </a>
-        )}
-
-        <button
-          type="button"
-          onClick={() => handleDownloadProjectZip('all')}
-          disabled={!currentProject}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 shadow-2xs transition hover:bg-slate-50 disabled:opacity-50"
-          title="Tải gói ZIP Kho ảnh dự án (Ảnh kỹ thuật + Bản thiết kế)"
-        >
-          <FileArchive className="h-4 w-4 text-[#1E3A8A]" />
-          <span className="hidden 2xl:inline">Tải ZIP</span>
-        </button>
+        <details className="group relative">
+          <summary className="flex cursor-pointer list-none items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs transition hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1E3A8A]">
+            <FileArchive className="h-4 w-4 text-[#1E3A8A]" />
+            <span className="hidden xl:inline">Xuất dữ liệu</span>
+            <span className="xl:hidden">Xuất</span>
+          </summary>
+          <div className="absolute right-0 top-full z-50 mt-2 min-w-44 overflow-hidden rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl">
+            {canExport && (
+              <a
+                href="/api/v1/design/export"
+                className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                title="Xuất báo cáo Excel Dự án & Kho ảnh"
+              >
+                <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
+                Xuất Excel
+              </a>
+            )}
+            <button
+              type="button"
+              onClick={() => handleDownloadProjectZip('all')}
+              disabled={!currentProject}
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              title="Tải gói ZIP Kho ảnh dự án"
+            >
+              <FileArchive className="h-4 w-4 text-[#1E3A8A]" />
+              Tải ZIP dự án
+            </button>
+          </div>
+        </details>
 
         {canUseAiDesign && (
           <button
             type="button"
             onClick={handleSaveFinished}
             disabled={!currentProject || !currentVersion || savingFinal}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-[#1E3A8A] px-3.5 py-1.5 text-sm font-semibold text-white shadow-2xs transition hover:bg-[#2563EB] disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-[#1E3A8A] px-2.5 py-1.5 text-xs font-semibold text-white shadow-2xs transition hover:bg-[#2563EB] disabled:opacity-50"
             title="Phê duyệt phiên bản đang chọn làm bản thiết kế chính thức bàn giao cho Lead / Sales"
           >
             <Check className="h-4 w-4" />

@@ -18,9 +18,9 @@ export function AssistantPanel() {
   } = useStudio();
 
   return (
-    <div className="flex flex-1 flex-col min-h-0 overflow-hidden p-3.5">
+    <div className="flex flex-1 flex-col min-h-0 overflow-hidden p-3">
       {/* Context Summary Card */}
-      <div className="mb-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs space-y-1">
+      <div className="mb-2.5 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs space-y-1">
         <div className="flex items-center justify-between">
           <span className="font-bold text-slate-900">
             {paramForm.projectName} ({paramForm.pixelPitch})

@@ -53,7 +53,7 @@ export function ProjectList({ fill = false }: { fill?: boolean }) {
             }`}
             title="Chọn nhiều dự án để xóa nhanh cùng lúc"
           >
-            {bulkSelectMode ? 'Bỏ chọn' : 'Chọn xóa'}
+            {bulkSelectMode ? 'Bỏ chọn' : 'Xóa'}
           </button>
           <button
             type="button"
