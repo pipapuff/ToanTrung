@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   DESIGN_STATUS_LABELS,
   DESIGN_TYPE_LABELS,
@@ -46,9 +47,11 @@ import {
   Wand2,
   Maximize2,
   Minimize2,
+  ListChecks,
 } from 'lucide-react';
 import { apiRequest } from '@/core/http/client';
 import { useSession } from '@/core/session/SessionContext';
+import { PanelToggleButton } from '@/core/layout/PanelToggleButton';
 
 interface LeadOpt {
   id: number;
@@ -98,6 +101,14 @@ interface ProjectParameterFormState {
 
 const STORAGE_SELECTED_PROJECT_KEY = 'tt_studio_selected_project_id';
 
+// Nút vuông nhỏ chỉ có biểu tượng trong cột Dự án / Kho ảnh (luôn kèm title + aria-label khi dùng).
+const SIDEBAR_ICON_BTN =
+  'inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand';
+
+// Nút vuông chỉ có biểu tượng trên thanh công cụ Studio (luôn kèm title + aria-label khi dùng).
+const TOOLBAR_ICON_BTN =
+  'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 hover:text-brand focus:outline-none focus-visible:ring-2 focus-visible:ring-brand disabled:opacity-50';
+
 function parseAspectRatioValue(ratioStr: string): number | null {
   const m = ratioStr.match(/^(\d+(?:\.\d+)?)\s*:\s*(\d+(?:\.\d+)?)$/);
   if (!m) return null;
@@ -113,6 +124,22 @@ function resolveAssetUrl(urlOrKey: string | null | undefined): string {
     return urlOrKey;
   }
   return `/api/v1/design/asset-file?key=${encodeURIComponent(urlOrKey)}`;
+}
+
+/** Đọc/ghi cờ ẩn-hiện panel vào localStorage (an toàn khi trình duyệt chặn storage). */
+function readFlag(key: string): boolean {
+  try {
+    return window.localStorage.getItem(key) === '1';
+  } catch {
+    return false;
+  }
+}
+function writeFlag(key: string, value: boolean) {
+  try {
+    window.localStorage.setItem(key, value ? '1' : '0');
+  } catch {
+    /* bỏ qua */
+  }
 }
 
 export function AiDesignWorkspace() {
@@ -170,19 +197,72 @@ export function AiDesignWorkspace() {
 
   // Responsive Mobile Switcher
   const [mobilePane, setMobilePane] = useState<'projects' | 'canvas' | 'assistant'>('canvas');
+
+  // ===== 4 CẠNH CÓ THỂ ẨN/HIỆN (trái, phải, trên, dưới) — cùng một cơ chế, cùng nút PanelToggleButton =====
   // Mở rộng ảnh: ẩn cột Dự án & Trợ lý để vùng Phối cảnh chiếm toàn bộ chiều ngang
   const [focusCanvas, setFocusCanvas] = useState<boolean>(false);
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    setFocusCanvas(window.localStorage.getItem('m05.focusCanvas') === '1');
+    setFocusCanvas(readFlag('m05.focusCanvas'));
   }, []);
   const toggleFocusCanvas = () => {
     setFocusCanvas((prev) => {
-      const next = !prev;
-      if (typeof window !== 'undefined') window.localStorage.setItem('m05.focusCanvas', next ? '1' : '0');
-      return next;
+      writeFlag('m05.focusCanvas', !prev);
+      return !prev;
     });
   };
+
+  // TRÊN: thanh công cụ
+  const [toolbarHidden, setToolbarHidden] = useState<boolean>(false);
+  useEffect(() => {
+    setToolbarHidden(readFlag('m05.toolbarHidden'));
+  }, []);
+  const toggleToolbar = () => {
+    setToolbarHidden((prev) => {
+      writeFlag('m05.toolbarHidden', !prev);
+      return !prev;
+    });
+  };
+
+  // TRÁI: cột Dự án / Kho ảnh
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(false);
+  useEffect(() => {
+    setSidebarCollapsed(readFlag('m05.sidebarCollapsed'));
+  }, []);
+  const toggleSidebar = () => {
+    setSidebarCollapsed((prev) => {
+      writeFlag('m05.sidebarCollapsed', !prev);
+      return !prev;
+    });
+  };
+
+  // PHẢI: cột Trợ lý AI / Thông số
+  const [rightCollapsed, setRightCollapsed] = useState<boolean>(false);
+  useEffect(() => {
+    setRightCollapsed(readFlag('m05.rightCollapsed'));
+  }, []);
+  const setRightCollapsedPersist = (next: boolean) => {
+    setRightCollapsed(next);
+    writeFlag('m05.rightCollapsed', next);
+  };
+
+  // DƯỚI: dải phiên bản
+  const [versionsHidden, setVersionsHidden] = useState<boolean>(false);
+  useEffect(() => {
+    setVersionsHidden(readFlag('m05.versionsHidden'));
+  }, []);
+  const toggleVersions = () => {
+    setVersionsHidden((prev) => {
+      writeFlag('m05.versionsHidden', !prev);
+      return !prev;
+    });
+  };
+
+  // Vị trí nút ẩn/hiện thanh công cụ: đặt trong header của trang, cạnh chuông thông báo.
+  // Header cần có phần tử <div id="studio-header-slot" /> (nếu không có, nút nằm tại chỗ ngay trên vùng làm việc).
+  const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    setHeaderSlot(document.getElementById('studio-header-slot'));
+  }, []);
 
   // Zoom & Canvas Tools
   const [zoomLevel, setZoomLevel] = useState<number>(100);
@@ -1295,19 +1375,31 @@ export function AiDesignWorkspace() {
     });
   };
 
-  const renderParametersFormContent = (compact = false) => (
+  const renderParametersFormContent = (compact = false) => {
+    // Trong cột phải (compact) cột lưới tự co theo độ rộng thật của cột, không cứng 2 cột
+    // => tab Thông số không bị xén khi bật/tắt cột phải hay đổi cỡ cửa sổ.
+    const pair = compact
+      ? 'grid grid-cols-[repeat(auto-fit,minmax(9rem,1fr))] gap-3'
+      : 'grid grid-cols-2 gap-3';
+    const sectionHead = 'flex items-center justify-between gap-2 border-b border-slate-100 pb-2.5';
+    const specRow = 'flex items-start justify-between gap-3';
+    const specVal = 'min-w-0 text-right break-words';
+
+    return (
     <form
       onSubmit={handleSaveParameters}
-      className={compact ? 'space-y-4 text-sm' : 'grid grid-cols-1 lg:grid-cols-3 gap-5 text-sm'}
+      className={
+        compact ? 'min-w-0 space-y-4 text-sm' : 'grid min-w-0 grid-cols-1 lg:grid-cols-3 gap-5 text-sm'
+      }
     >
       {/* SECTION 1: THÔNG TIN DỰ ÁN */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-2xs space-y-3.5">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-          <div>
+      <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-2xs space-y-3.5">
+        <div className={sectionHead}>
+          <div className="min-w-0">
             <h3 className="text-base font-bold text-slate-900">1. Thông tin dự án</h3>
             <p className="text-xs text-slate-500">Định danh dự án, loại thiết kế & liên kết hồ sơ Lead</p>
           </div>
-          <span className="rounded-lg bg-blue-50 px-2.5 py-1 text-xs font-bold text-[#1E3A8A] border border-blue-200">
+          <span className="shrink-0 rounded-lg bg-blue-50 px-2.5 py-1 text-xs font-bold text-[#1E3A8A] border border-blue-200">
             DA-{String(currentProject?.id || 1).padStart(4, '0')}
           </span>
         </div>
@@ -1322,13 +1414,13 @@ export function AiDesignWorkspace() {
             data-testid="param-project-name"
             value={paramForm.projectName}
             onChange={(e) => setParamForm((p) => ({ ...p, projectName: e.target.value }))}
-            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-[#2563EB] focus:outline-none"
+            className="w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-[#2563EB] focus:outline-none"
           />
         </div>
 
         <div>
           <label className="block text-sm font-semibold text-slate-700 mb-1">Loại dự án thiết kế</label>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(8rem,1fr))] gap-2">
             <button
               type="button"
               onClick={() => setParamForm((p) => ({ ...p, designType: 'perspective_3d' }))}
@@ -1362,7 +1454,7 @@ export function AiDesignWorkspace() {
             data-testid="param-lead-select"
             value={paramForm.leadId}
             onChange={(e) => setParamForm((p) => ({ ...p, leadId: e.target.value }))}
-            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-[#2563EB] focus:outline-none"
+            className="w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-[#2563EB] focus:outline-none"
           >
             <option value="">-- Thiết kế độc lập (Không gắn Lead) --</option>
             {leadOptions.map((l) => (
@@ -1380,7 +1472,7 @@ export function AiDesignWorkspace() {
             value={paramForm.contactName}
             onChange={(e) => setParamForm((p) => ({ ...p, contactName: e.target.value }))}
             placeholder="VD: Anh Minh — Ban Quản lý Tòa nhà"
-            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-[#2563EB] focus:outline-none"
+            className="w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-[#2563EB] focus:outline-none"
           />
         </div>
 
@@ -1394,7 +1486,7 @@ export function AiDesignWorkspace() {
             value={paramForm.installationInfo}
             onChange={(e) => setParamForm((p) => ({ ...p, installationInfo: e.target.value }))}
             placeholder="VD: Vách sảnh chính tầng trệt, cách sàn 1.2m"
-            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-[#2563EB] focus:outline-none"
+            className="w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-[#2563EB] focus:outline-none"
           />
         </div>
 
@@ -1405,19 +1497,19 @@ export function AiDesignWorkspace() {
             value={paramForm.notes}
             onChange={(e) => setParamForm((p) => ({ ...p, notes: e.target.value }))}
             placeholder="Ghi chú kết cấu khung, nguồn điện, yêu cầu thẩm mỹ..."
-            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-[#2563EB] focus:outline-none"
+            className="w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-[#2563EB] focus:outline-none"
           />
         </div>
       </div>
 
       {/* SECTION 2: THÔNG SỐ KỸ THUẬT LED */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-2xs space-y-3.5">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-          <div>
+      <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-2xs space-y-3.5">
+        <div className={sectionHead}>
+          <div className="min-w-0">
             <h3 className="text-base font-bold text-slate-900">2. Thông số kỹ thuật LED</h3>
             <p className="text-xs text-slate-500">Sản phẩm phê duyệt, bước điểm ảnh (mm) & kích thước (m)</p>
           </div>
-          <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-mono font-bold text-slate-700">
+          <span className="shrink-0 rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-mono font-bold text-slate-700">
             {paramForm.pixelPitch} · {computedLiveSpecs.areaM2} m²
           </span>
         </div>
@@ -1430,7 +1522,7 @@ export function AiDesignWorkspace() {
             data-testid="param-product-select"
             value={paramForm.productId}
             onChange={(e) => setParamForm((p) => ({ ...p, productId: Number(e.target.value) || 1 }))}
-            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-[#2563EB] focus:outline-none"
+            className="w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-[#2563EB] focus:outline-none"
           >
             {productOptions.map((p) => (
               <option key={p.id} value={p.id}>
@@ -1440,8 +1532,8 @@ export function AiDesignWorkspace() {
           </select>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div>
+        <div className={pair}>
+          <div className="min-w-0">
             <label className="block text-sm font-semibold text-slate-700 mb-1">
               Bước điểm ảnh (mm)
             </label>
@@ -1449,7 +1541,7 @@ export function AiDesignWorkspace() {
               data-testid="param-pixel-pitch"
               value={paramForm.pixelPitch}
               onChange={(e) => setParamForm((p) => ({ ...p, pixelPitch: e.target.value }))}
-              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 focus:border-[#2563EB] focus:outline-none"
+              className="w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 focus:border-[#2563EB] focus:outline-none"
             >
               <option value="P1.25">P1.25 (1.25 mm)</option>
               <option value="P1.53">P1.53 (1.53 mm)</option>
@@ -1461,7 +1553,7 @@ export function AiDesignWorkspace() {
               <option value="P5.0">P5.0 (5.00 mm)</option>
             </select>
           </div>
-          <div>
+          <div className="min-w-0">
             <label className="block text-sm font-semibold text-slate-700 mb-1">Kiểu màn hình</label>
             <select
               value={paramForm.screenStyle}
@@ -1471,7 +1563,7 @@ export function AiDesignWorkspace() {
                   screenStyle: e.target.value as 'flat' | 'curved' | 'corner_90',
                 }))
               }
-              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-[#2563EB] focus:outline-none"
+              className="w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-[#2563EB] focus:outline-none"
             >
               <option value="flat">Màn hình phẳng</option>
               <option value="curved">Màn hình cong</option>
@@ -1482,8 +1574,8 @@ export function AiDesignWorkspace() {
 
         {/* Toggle for Unmeasured Projects (Chưa có số liệu đo đạc thực tế -> Ước tính theo 4 điểm chấm) */}
         <div className="rounded-xl border border-blue-200/80 bg-blue-50/50 p-3 text-xs">
-          <div className="flex items-center justify-between gap-2">
-            <label className="flex cursor-pointer items-center gap-2 font-bold text-[#1E3A8A]">
+          <div className="flex items-start justify-between gap-2">
+            <label className="flex min-w-0 cursor-pointer items-start gap-2 font-bold text-[#1E3A8A]">
               <input
                 type="checkbox"
                 checked={unmeasuredMode}
@@ -1498,11 +1590,11 @@ export function AiDesignWorkspace() {
                     }));
                   }
                 }}
-                className="h-4 w-4 rounded border-slate-300 text-[#1E3A8A]"
+                className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-[#1E3A8A]"
               />
               <span>Chưa có số liệu đo đạc (Tự tính theo 4 điểm chấm)</span>
             </label>
-            <span className="rounded-md bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-700 border border-blue-200">
+            <span className="shrink-0 rounded-md bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-700 border border-blue-200">
               {quadEstimatedSpecs.cabinetCols}×{quadEstimatedSpecs.cabinetRows} Cabin
             </span>
           </div>
@@ -1515,8 +1607,8 @@ export function AiDesignWorkspace() {
           </p>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div>
+        <div className={pair}>
+          <div className="min-w-0">
             <label className="block text-sm font-semibold text-slate-700 mb-1">
               {unmeasuredMode ? 'Ngang ước tính (m)' : 'Chiều ngang LED (m)'}
             </label>
@@ -1540,10 +1632,10 @@ export function AiDesignWorkspace() {
                       : prev.screenHeightM,
                 }));
               }}
-              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-mono font-semibold text-slate-900 focus:border-[#2563EB] focus:outline-none"
+              className="w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-mono font-semibold text-slate-900 focus:border-[#2563EB] focus:outline-none"
             />
           </div>
-          <div>
+          <div className="min-w-0">
             <label className="block text-sm font-semibold text-slate-700 mb-1">
               {unmeasuredMode ? 'Cao ước tính (m)' : 'Chiều cao LED (m)'}
             </label>
@@ -1567,36 +1659,36 @@ export function AiDesignWorkspace() {
                       : prev.screenWidthM,
                 }));
               }}
-              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-mono font-semibold text-slate-900 focus:border-[#2563EB] focus:outline-none"
+              className="w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-mono font-semibold text-slate-900 focus:border-[#2563EB] focus:outline-none"
             />
           </div>
         </div>
 
         {/* Computed LED Engineering Summary */}
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2 text-xs">
-          <div className="flex justify-between">
+          <div className={specRow}>
             <span className="text-slate-500">Diện tích hiển thị thực tế:</span>
-            <span className="font-bold text-slate-900">{computedLiveSpecs.areaM2} m²</span>
+            <span className={`${specVal} font-bold text-slate-900`}>{computedLiveSpecs.areaM2} m²</span>
           </div>
-          <div className="flex justify-between">
+          <div className={specRow}>
             <span className="text-slate-500">Độ phân giải điểm ảnh thực:</span>
-            <span className="font-mono font-bold text-[#1E3A8A]">
+            <span className={`${specVal} font-mono font-bold text-[#1E3A8A]`}>
               {computedLiveSpecs.resW} × {computedLiveSpecs.resH} px
             </span>
           </div>
-          <div className="flex justify-between">
+          <div className={specRow}>
             <span className="text-slate-500">Cấu hình Cabinet (640×480mm):</span>
-            <span className="font-semibold text-slate-800">
+            <span className={`${specVal} font-semibold text-slate-800`}>
               {computedLiveSpecs.cabinetCount} Cabinet ({computedLiveSpecs.moduleCount} Module 320×160mm)
             </span>
           </div>
-          <div className="flex justify-between">
+          <div className={specRow}>
             <span className="text-slate-500">Bộ xử lý & Nguồn cấp:</span>
-            <span className="font-semibold text-slate-800">Novastar VX600 · Meanwell 5V-40A</span>
+            <span className={`${specVal} font-semibold text-slate-800`}>Novastar VX600 · Meanwell 5V-40A</span>
           </div>
-          <div className="flex justify-between">
+          <div className={specRow}>
             <span className="text-slate-500">Công suất tiêu thụ (TB / Cực đại):</span>
-            <span className="font-semibold text-slate-800">
+            <span className={`${specVal} font-semibold text-slate-800`}>
               {computedLiveSpecs.avgKw} kW / {computedLiveSpecs.maxKw} kW
             </span>
           </div>
@@ -1604,10 +1696,10 @@ export function AiDesignWorkspace() {
       </div>
 
       {/* SECTION 3: CÀI ĐẶT ĐẦU RA */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-2xs flex flex-col justify-between space-y-3.5">
+      <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-2xs flex flex-col justify-between space-y-3.5">
         <div className="space-y-3.5">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-            <div>
+          <div className={sectionHead}>
+            <div className="min-w-0">
               <h3 className="text-base font-bold text-slate-900">3. Cài đặt đầu ra</h3>
               <p className="text-xs text-slate-500">
                 Tỷ lệ khung hình, khóa tỷ lệ & độ phân giải xuất file (px)
@@ -1617,7 +1709,7 @@ export function AiDesignWorkspace() {
               type="button"
               data-testid="param-aspect-lock-btn"
               onClick={() => setParamForm((p) => ({ ...p, aspectLocked: !p.aspectLocked }))}
-              className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-semibold transition ${
+              className={`inline-flex shrink-0 items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-semibold transition ${
                 paramForm.aspectLocked
                   ? 'border-blue-200 bg-blue-50 text-[#1E3A8A]'
                   : 'border-slate-200 bg-white text-slate-600'
@@ -1651,8 +1743,8 @@ export function AiDesignWorkspace() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
+          <div className={pair}>
+            <div className="min-w-0">
               <label className="block text-sm font-semibold text-slate-700 mb-1">
                 Chiều rộng ảnh xuất (px)
               </label>
@@ -1674,10 +1766,10 @@ export function AiDesignWorkspace() {
                         : prev.bannerHeightPx,
                   }));
                 }}
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-mono font-semibold text-slate-900 focus:border-[#2563EB] focus:outline-none"
+                className="w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-mono font-semibold text-slate-900 focus:border-[#2563EB] focus:outline-none"
               />
             </div>
-            <div>
+            <div className="min-w-0">
               <label className="block text-sm font-semibold text-slate-700 mb-1">
                 Chiều cao ảnh xuất (px)
               </label>
@@ -1699,7 +1791,7 @@ export function AiDesignWorkspace() {
                         : prev.bannerWidthPx,
                   }));
                 }}
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-mono font-semibold text-slate-900 focus:border-[#2563EB] focus:outline-none"
+                className="w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-mono font-semibold text-slate-900 focus:border-[#2563EB] focus:outline-none"
               />
             </div>
           </div>
@@ -1707,7 +1799,7 @@ export function AiDesignWorkspace() {
           {paramForm.designType === 'perspective_3d' ? (
             <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-3 text-xs text-slate-700 space-y-1">
               <div className="font-bold text-[#1E3A8A]">Tọa độ khung neo phối cảnh 4 góc (%)</div>
-              <div className="font-mono text-[11px] text-slate-600">
+              <div className="font-mono text-[11px] text-slate-600 break-words">
                 TL({quad.topLeft.x}%, {quad.topLeft.y}%) · TR({quad.topRight.x}%, {quad.topRight.y}%) · BR(
                 {quad.bottomRight.x}%, {quad.bottomRight.y}%) · BL({quad.bottomLeft.x}%, {quad.bottomLeft.y}%)
               </div>
@@ -1754,7 +1846,8 @@ export function AiDesignWorkspace() {
         </div>
       </div>
     </form>
-  );
+    );
+  };
 
   const canvasRatio = (() => {
     const [w, h] = String(currentProject?.aspectRatio || '16:9').split(':').map(Number);
@@ -1762,207 +1855,219 @@ export function AiDesignWorkspace() {
   })();
   const aiConnected = Boolean(providerStatus?.isConfigured);
 
+  // TRÊN: nút ẩn/hiện thanh công cụ — cùng PanelToggleButton với 3 cạnh còn lại (dạng header, luôn ghim trên header trang)
+  const toolbarToggleBtn = (
+    <PanelToggleButton
+      side="top"
+      variant="header"
+      open={!toolbarHidden}
+      onToggle={toggleToolbar}
+      label="thanh công cụ"
+      testId={toolbarHidden ? 'toolbar-show-btn' : 'toolbar-hide-btn'}
+    />
+  );
+
   return (
-    <div className="flex h-full w-full flex-col bg-slate-50 font-sans text-slate-800 antialiased overflow-hidden select-none">
-      {/* 1. COMPACT STUDIO TOOLBAR WITH 3 PROMINENT WORKSPACE AREAS */}
-      <div className="flex h-12 w-full shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-white px-3">
-        {/* Left: Active Project Title, Quick Edit / Delete & Lead Reference */}
-        <div className="flex items-center gap-2 min-w-0 flex-1">
-          <span
-            className="text-[15px] font-semibold text-slate-900 truncate max-w-[160px] xl:max-w-[260px]"
-            title={
-              currentProject
-                ? `${currentProject.projectName} · ${DESIGN_TYPE_LABELS[currentProject.designType]} · ${DESIGN_STATUS_LABELS[currentProject.status]}`
-                : undefined
-            }
-          >
-            {currentProject ? currentProject.projectName : 'Dự án thiết kế'}
-          </span>
-
-          {currentProject && (
-            <div className="flex items-center gap-1 shrink-0">
-              <button
-                type="button"
-                data-testid="toolbar-quick-edit-project-btn"
-                onClick={() => openQuickEditProject(currentProject)}
-                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50/80 px-2 py-1 text-xs font-semibold text-slate-700 hover:border-blue-300 hover:bg-blue-50 hover:text-[#1E3A8A] transition"
-                title="Sửa nhanh tên dự án, loại thiết kế, Lead liên kết & kích thước"
-              >
-                <Edit2 className="h-3 w-3" />
-                <span className="hidden sm:inline">Sửa</span>
-              </button>
-              <button
-                type="button"
-                data-testid="toolbar-quick-delete-project-btn"
-                onClick={() => requestDeleteProject(currentProject)}
-                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50/80 px-2 py-1 text-xs font-semibold text-slate-600 hover:border-red-200 hover:bg-red-50 hover:text-red-600 transition"
-                title="Xóa dự án đang chọn"
-              >
-                <Trash2 className="h-3 w-3" />
-                <span className="hidden xl:inline">Xóa</span>
-              </button>
-            </div>
-          )}
-
-          {currentProject?.leadCode && (
-            <a
-              href={`/leads?search=${encodeURIComponent(currentProject.leadCode)}`}
-              className="hidden lg:inline-flex items-center gap-1 rounded-lg bg-blue-50/70 px-2 py-0.5 text-xs font-mono font-semibold text-[#1E3A8A] hover:bg-blue-100 transition"
-              title="Mở hồ sơ Lead liên kết"
-            >
-              <span>Lead: {currentProject.leadCode}</span>
-            </a>
-          )}
-        </div>
-
-        {/* Center: THREE PROMINENT WORKSPACE AREAS ("Phối cảnh", "Trợ lý AI", "Thông số") */}
+    <div className="flex h-full min-h-0 min-w-0 w-full flex-col bg-slate-50 font-sans text-slate-800 antialiased overflow-hidden select-none">
+      {/* 1. THANH CÔNG CỤ STUDIO — ẩn/hiện được để nhường chỗ cho vùng làm việc */}
+      {headerSlot && createPortal(toolbarToggleBtn, headerSlot)}
+      {toolbarHidden ? (
+        headerSlot ? null : (
+          // Không có slot trên header: tay nắm ghim ngay mép trên vùng làm việc (nằm hẳn bên trong để không bị cắt)
+          <div className="relative z-30 h-0 w-full shrink-0">
+            <PanelToggleButton
+              side="top"
+              open={false}
+              inset
+              onToggle={toggleToolbar}
+              label="thanh công cụ"
+              testId="toolbar-show-btn"
+            />
+          </div>
+        )
+      ) : (
         <div
-          role="tablist"
-          aria-label="Khu vực làm việc Studio"
-          className="flex shrink-0 items-center gap-1 rounded-lg bg-slate-100 p-0.5 border border-slate-200"
+          id="studio-toolbar"
+          className="flex h-12 w-full shrink-0 items-center gap-3 border-b border-slate-200 bg-white px-3"
         >
-          <button
-            type="button"
-            role="tab"
-            data-testid="workspace-tab-perspective"
-            aria-selected={activeWorkspaceArea === 'perspective'}
-            onClick={() => {
-              setActiveWorkspaceArea('perspective');
-              setMobilePane('canvas');
-            }}
-            className={`flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1 text-sm font-semibold transition ${
-              activeWorkspaceArea === 'perspective'
-                ? 'bg-[#1E3A8A] text-white shadow-xs'
-                : 'text-slate-600 hover:bg-white hover:text-slate-900'
-            }`}
-          >
-            <Monitor className="h-4 w-4" />
-            <span>Phối cảnh</span>
-          </button>
-
-          <button
-            type="button"
-            role="tab"
-            data-testid="workspace-tab-assistant"
-            aria-selected={activeWorkspaceArea === 'assistant'}
-            onClick={() => {
-              setActiveWorkspaceArea('assistant');
-              setSideDockTab('assistant');
-              setMobilePane('assistant');
-            }}
-            className={`flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1 text-sm font-semibold transition ${
-              activeWorkspaceArea === 'assistant'
-                ? 'bg-[#1E3A8A] text-white shadow-xs'
-                : 'text-slate-600 hover:bg-white hover:text-slate-900'
-            }`}
-          >
-            <Sparkles className="h-4 w-4" />
-            <span>Tạo ảnh AI</span>
-          </button>
-
-          <button
-            type="button"
-            role="tab"
-            data-testid="workspace-tab-specs"
-            aria-selected={activeWorkspaceArea === 'specs'}
-            onClick={() => {
-              setActiveWorkspaceArea('specs');
-              setSideDockTab('specs');
-            }}
-            className={`flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1 text-sm font-semibold transition ${
-              activeWorkspaceArea === 'specs'
-                ? 'bg-[#1E3A8A] text-white shadow-xs'
-                : 'text-slate-600 hover:bg-white hover:text-slate-900'
-            }`}
-          >
-            <Settings2 className="h-4 w-4" />
-            <span>Thông số</span>
-          </button>
-        </div>
-
-        {/* Right: Provider Status, Excel Export, ZIP Download & Approve Final */}
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={toggleFocusCanvas}
-            aria-pressed={focusCanvas}
-            title={focusCanvas ? 'Hiện lại cột Dự án và Trợ lý AI' : 'Ẩn hai cột bên để xem ảnh to hơn'}
-            className={`hidden md:inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold border transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3A8A] ${
-              focusCanvas
-                ? 'bg-[#1E3A8A] text-white border-[#1E3A8A]'
-                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-            }`}
-          >
-            {focusCanvas ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-            <span className="hidden xl:inline">{focusCanvas ? 'Thu nhỏ ảnh' : 'Mở rộng ảnh'}</span>
-          </button>
-          <button
-            type="button"
-            data-testid="open-multi-ai-hub-btn"
-            onClick={() => {
-              const currentPid = selectedProviderId || providerStatus?.defaultProviderId || 'google_imagen';
-              setConfigModalProviderId(currentPid);
-              const cat = providerStatus?.availableProviders?.find((p) => p.providerId === currentPid);
-              if (cat) {
-                setConfigEndpointInput(cat.apiEndpoint || '');
-                setConfigCustomModelInput(cat.activeModel || selectedModelId || '');
+          {/* Trái: tên dự án, sửa/xóa, mã Lead */}
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <span
+              className="min-w-0 truncate text-[15px] font-semibold text-slate-900"
+              title={
+                currentProject
+                  ? `${currentProject.projectName} · ${DESIGN_TYPE_LABELS[currentProject.designType]} · ${DESIGN_STATUS_LABELS[currentProject.status]}`
+                  : undefined
               }
-              setShowAiConfigModal(true);
-            }}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50/80 px-2.5 py-1.5 text-xs font-semibold text-[#1E3A8A] shadow-2xs transition hover:bg-blue-100"
-            title="Bấm để chuyển đổi qua lại giữa nhiều con AI (Google Imagen 3, OpenAI GPT-Image-1, FLUX.1 Pro, Stability SD 3.5, Custom AI, Studio v3) hoặc cấu hình API Key"
-          >
-            <Cpu className="h-3.5 w-3.5 text-[#2563EB]" />
-            <span className="hidden lg:inline">
-              AI:{' '}
-              {providerStatus?.availableProviders?.find((p) => p.providerId === selectedProviderId)
-                ?.shortName ||
-                providerStatus?.providerName ||
-                'Đa AI Studio'}{' '}
-              ({selectedModelId})
-            </span>
-            <span className="lg:hidden">Đổi AI</span>
-            <span className="rounded bg-[#1E3A8A] px-1.5 py-0.5 text-[10px] font-bold text-white">
-              Đổi AI
-            </span>
-          </button>
-
-          {canExport && (
-            <a
-              href="/api/v1/design/export"
-              className="hidden sm:inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 shadow-2xs transition hover:bg-slate-50"
-              title="Xuất báo cáo Excel Dự án & Kho ảnh (05_DuAn_AI_KhoAnh.xlsx)"
             >
-              <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
-              <span className="hidden 2xl:inline">Xuất Excel</span>
-            </a>
-          )}
+              {currentProject ? currentProject.projectName : 'Dự án thiết kế'}
+            </span>
 
-          <button
-            type="button"
-            onClick={() => handleDownloadProjectZip('all')}
-            disabled={!currentProject}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 shadow-2xs transition hover:bg-slate-50 disabled:opacity-50"
-            title="Tải gói ZIP Kho ảnh dự án (Ảnh kỹ thuật + Bản thiết kế)"
+            {currentProject && (
+              <div className="hidden shrink-0 items-center gap-1 sm:flex">
+                <button
+                  type="button"
+                  data-testid="toolbar-quick-edit-project-btn"
+                  onClick={() => openQuickEditProject(currentProject)}
+                  className={TOOLBAR_ICON_BTN}
+                  title="Sửa tên dự án, loại thiết kế, Lead liên kết và kích thước"
+                  aria-label="Sửa dự án"
+                >
+                  <Edit2 className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  data-testid="toolbar-quick-delete-project-btn"
+                  onClick={() => requestDeleteProject(currentProject)}
+                  className={`${TOOLBAR_ICON_BTN} hover:!border-red-200 hover:!bg-red-50 hover:!text-red-600`}
+                  title="Xóa dự án đang chọn"
+                  aria-label="Xóa dự án"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
+
+            {currentProject?.leadCode && (
+              <a
+                href={`/leads?search=${encodeURIComponent(currentProject.leadCode)}`}
+                className="hidden shrink-0 whitespace-nowrap rounded-lg bg-brand-soft px-2 py-1 font-mono text-xs font-semibold text-brand transition hover:bg-brand-border lg:inline-flex"
+                title="Mở hồ sơ Lead liên kết"
+              >
+                {currentProject.leadCode}
+              </a>
+            )}
+          </div>
+
+          {/* Giữa: 3 khu vực làm việc */}
+          <div
+            role="tablist"
+            aria-label="Khu vực làm việc Studio"
+            className="flex shrink-0 items-center gap-0.5 rounded-lg border border-slate-200 bg-slate-100 p-0.5"
           >
-            <FileArchive className="h-4 w-4 text-[#1E3A8A]" />
-            <span className="hidden 2xl:inline">Tải ZIP</span>
-          </button>
+            {(
+              [
+                { id: 'perspective' as const, label: 'Phối cảnh', Icon: Monitor },
+                { id: 'assistant' as const, label: 'Tạo ảnh AI', Icon: Sparkles },
+                { id: 'specs' as const, label: 'Thông số', Icon: Settings2 },
+              ]
+            ).map(({ id, label, Icon }) => (
+              <button
+                key={id}
+                type="button"
+                role="tab"
+                data-testid={`workspace-tab-${id}`}
+                aria-selected={activeWorkspaceArea === id}
+                title={label}
+                onClick={() => {
+                  setActiveWorkspaceArea(id);
+                  if (id === 'perspective') {
+                    setMobilePane('canvas');
+                  } else {
+                    setSideDockTab(id);
+                    setRightCollapsedPersist(false);
+                    if (id === 'assistant') setMobilePane('assistant');
+                  }
+                }}
+                className={`flex items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
+                  activeWorkspaceArea === id
+                    ? 'bg-brand text-white shadow-sm'
+                    : 'text-slate-600 hover:bg-white hover:text-slate-900'
+                }`}
+              >
+                <Icon className="h-4 w-4" />
+                <span className="hidden lg:inline">{label}</span>
+              </button>
+            ))}
+          </div>
 
-          {canUseAiDesign && (
+          {/* Phải: công cụ phụ (chỉ biểu tượng), AI, duyệt bản chốt, ẩn thanh */}
+          <div className="flex shrink-0 items-center gap-1.5">
             <button
               type="button"
-              onClick={handleSaveFinished}
-              disabled={!currentProject || !currentVersion || savingFinal}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-[#1E3A8A] px-3.5 py-1.5 text-sm font-semibold text-white shadow-2xs transition hover:bg-[#2563EB] disabled:opacity-50"
-              title="Phê duyệt phiên bản đang chọn làm bản thiết kế chính thức bàn giao cho Lead / Sales"
+              onClick={toggleFocusCanvas}
+              aria-pressed={focusCanvas}
+              aria-label={focusCanvas ? 'Hiện lại cột Dự án và Trợ lý AI' : 'Mở rộng ảnh'}
+              title={focusCanvas ? 'Hiện lại cột Dự án và Trợ lý AI' : 'Ẩn hai cột bên để xem ảnh to hơn'}
+              className={`${TOOLBAR_ICON_BTN} hidden md:inline-flex ${
+                focusCanvas ? '!border-brand !bg-brand !text-white hover:!bg-brand-deep' : ''
+              }`}
             >
-              <Check className="h-4 w-4" />
-              <span>{savingFinal ? 'Đang duyệt...' : 'Duyệt bản chốt'}</span>
+              {focusCanvas ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
             </button>
-          )}
+
+            <button
+              type="button"
+              data-testid="open-multi-ai-hub-btn"
+              onClick={() => {
+                const currentPid = selectedProviderId || providerStatus?.defaultProviderId || 'google_imagen';
+                setConfigModalProviderId(currentPid);
+                const cat = providerStatus?.availableProviders?.find((p) => p.providerId === currentPid);
+                if (cat) {
+                  setConfigEndpointInput(cat.apiEndpoint || '');
+                  setConfigCustomModelInput(cat.activeModel || selectedModelId || '');
+                }
+                setShowAiConfigModal(true);
+              }}
+              className="hidden h-8 items-center gap-1.5 rounded-lg border border-brand-border bg-brand-soft px-2.5 text-xs font-semibold text-brand transition hover:bg-brand-border focus:outline-none focus-visible:ring-2 focus-visible:ring-brand sm:inline-flex"
+              title="Đổi AI tạo ảnh"
+              aria-label="Đổi AI tạo ảnh"
+            >
+              <Cpu className="h-3.5 w-3.5" />
+              <span className="hidden max-w-[9rem] truncate xl:inline">
+                {providerStatus?.availableProviders?.find((p) => p.providerId === selectedProviderId)
+                  ?.shortName ||
+                  providerStatus?.providerName ||
+                  'Đa AI Studio'}
+              </span>
+            </button>
+
+            <span aria-hidden className="mx-0.5 hidden h-5 w-px bg-slate-200 sm:block" />
+
+            {canExport && (
+              <a
+                href="/api/v1/design/export"
+                className={`${TOOLBAR_ICON_BTN} hidden sm:inline-flex`}
+                title="Xuất Excel Dự án và Kho ảnh"
+                aria-label="Xuất Excel"
+              >
+                <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
+              </a>
+            )}
+
+            <button
+              type="button"
+              onClick={() => handleDownloadProjectZip('all')}
+              disabled={!currentProject}
+              className={`${TOOLBAR_ICON_BTN} hidden sm:inline-flex`}
+              title="Tải gói ZIP Kho ảnh dự án (ảnh kỹ thuật và bản thiết kế)"
+              aria-label="Tải ZIP"
+            >
+              <FileArchive className="h-4 w-4 text-brand" />
+            </button>
+
+            {canUseAiDesign && (
+              <button
+                type="button"
+                onClick={handleSaveFinished}
+                disabled={!currentProject || !currentVersion || savingFinal}
+                className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-brand px-3 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-deep focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 disabled:opacity-50"
+                title="Phê duyệt phiên bản đang chọn làm bản thiết kế chính thức bàn giao cho Lead / Sales"
+              >
+                <Check className="h-4 w-4" />
+                <span>{savingFinal ? 'Đang duyệt...' : 'Duyệt bản chốt'}</span>
+              </button>
+            )}
+
+            {!headerSlot && (
+              <>
+                <span aria-hidden className="mx-0.5 hidden h-5 w-px bg-slate-200 sm:block" />
+                {toolbarToggleBtn}
+              </>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* SLEEK FLOATING WEB NOTIFICATION STACK (Success & Error Toasts) */}
       {(successToast || error) && (
@@ -2035,550 +2140,618 @@ export function AiDesignWorkspace() {
       </div>
 
       {/* 2. MAIN STUDIO BODY */}
-      <div className="relative flex flex-1 min-h-0 overflow-hidden">
-        {/* ================= LEFT SIDEBAR: "Dự án" & "Kho ảnh dự án" (NO PARAMETER INPUTS HERE) ================= */}
-        <aside
-          className={`${
-            mobilePane === 'projects' ? 'flex w-full' : 'hidden'
-          } ${focusCanvas ? 'md:hidden' : 'md:flex'} md:w-64 xl:w-72 shrink-0 flex-col h-full min-h-0 border-r border-slate-200 bg-white overflow-hidden`}
+      <div className="relative flex flex-1 min-h-0 min-w-0 overflow-hidden">
+        {/* ================= TRÁI: "Dự án" & "Kho ảnh dự án" =================
+            Wrapper `relative` KHÔNG overflow-hidden để tay nắm ghim ở mép phải luôn nhìn thấy,
+            kể cả khi cột thu gọn thành thanh hẹp. overflow-hidden chỉ nằm ở <aside> bên trong. */}
+        <div
+          className={`relative flex shrink-0 ${
+            mobilePane === 'projects' ? 'w-full' : 'hidden'
+          } ${focusCanvas ? 'md:hidden' : 'md:flex'} ${
+            sidebarCollapsed ? 'md:w-12' : 'md:w-64 xl:w-72'
+          } transition-[width] duration-150 motion-reduce:transition-none`}
         >
-          {/* SECTION A: "Dự án" (Compact Searchable List with Direct Add / Edit / Delete & Bulk Clean) */}
-          <div className="flex flex-col min-h-0 basis-1/2 border-b border-slate-200 p-3.5">
-            <div className="mb-2 flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-1.5">
-                <h2 className="text-base font-semibold text-slate-900 whitespace-nowrap">Dự án</h2>
-                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-600">
-                  {filteredProjects.length}
-                </span>
-              </div>
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setBulkSelectMode((v) => {
-                      if (v) setSelectedProjectIds([]);
-                      return !v;
-                    });
-                  }}
-                  className={`rounded-lg px-2 py-1 text-xs font-semibold transition ${
-                    bulkSelectMode || selectedProjectIds.length > 0
-                      ? 'bg-blue-50 text-[#1E3A8A] border border-blue-200'
-                      : 'text-slate-500 hover:bg-slate-100'
-                  }`}
-                  title="Chọn nhiều dự án để xóa nhanh cùng lúc"
-                >
-                  {bulkSelectMode ? 'Bỏ chọn' : 'Chọn xóa'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowArchivedProjects((v) => !v)}
-                  className={`rounded-lg px-2 py-1 text-xs font-semibold transition ${
-                    showArchivedProjects
-                      ? 'bg-amber-100 text-amber-800'
-                      : 'text-slate-500 hover:bg-slate-100'
-                  }`}
-                  title="Hiện/ẩn dự án đã lưu trữ"
-                >
-                  Lưu trữ
-                </button>
-                <button
-                  type="button"
-                  data-testid="create-new-project-btn"
-                  onClick={() => setShowCreateModal(true)}
-                  className="inline-flex items-center gap-1 rounded-lg bg-[#1E3A8A] px-2.5 py-1 text-xs font-bold text-white shadow-2xs transition hover:bg-[#2563EB]"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  <span>Mới</span>
-                </button>
+          <PanelToggleButton
+            side="left"
+            open={!sidebarCollapsed}
+            onToggle={toggleSidebar}
+            label="cột Dự án và Kho ảnh"
+            className="hidden md:grid"
+            testId={sidebarCollapsed ? 'sidebar-expand-btn' : 'sidebar-collapse-btn'}
+          />
+        <aside className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden border-r border-slate-200 bg-white">
+          {/* Thanh hẹp khi thu gọn: tạo dự án mới và ảnh đại diện từng dự án (nút hiện lại là tay nắm ghim ở mép) */}
+          {sidebarCollapsed && (
+            <div
+              data-testid="projects-rail"
+              className="hidden h-full min-h-0 flex-col items-center gap-2 py-2 md:flex"
+            >
+              <button
+                type="button"
+                data-testid="create-new-project-btn"
+                onClick={() => setShowCreateModal(true)}
+                aria-label="Tạo dự án mới"
+                title="Tạo dự án mới"
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand text-white shadow-sm transition hover:bg-brand-deep focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+              <div className="mt-1 flex min-h-0 w-full flex-1 flex-col items-center gap-1.5 overflow-y-auto px-1">
+                {filteredProjects.map((proj) => {
+                  const isSel = proj.id === currentProject?.id;
+                  return (
+                    <button
+                      key={proj.id}
+                      type="button"
+                      data-testid={`project-item-${proj.id}`}
+                      onClick={() => {
+                        syncProjectSelection(proj);
+                        setOpenMenuProjectId(null);
+                        setMobilePane('canvas');
+                      }}
+                      title={proj.projectName}
+                      aria-label={`Mở dự án ${proj.projectName}`}
+                      aria-current={isSel ? 'true' : undefined}
+                      className={`h-9 w-9 shrink-0 overflow-hidden rounded-lg border-2 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
+                        isSel ? 'border-brand' : 'border-transparent opacity-75 hover:opacity-100'
+                      }`}
+                    >
+                      <img
+                        src={resolveAssetUrl(proj.photos[0]?.url || proj.sitePhotoDownloadUrl)}
+                        alt=""
+                        aria-hidden="true"
+                        className="h-full w-full object-cover"
+                      />
+                    </button>
+                  );
+                })}
               </div>
             </div>
+          )}
 
-            {/* Bulk Action Bar when bulkSelectMode is active or projects are ticked */}
-            {(bulkSelectMode || selectedProjectIds.length > 0) && (
-              <div className="mb-2 flex items-center justify-between rounded-xl border border-blue-200/80 bg-blue-50/60 px-2.5 py-1.5 text-xs shrink-0">
-                <label className="flex cursor-pointer items-center gap-1.5 font-semibold text-slate-700">
-                  <input
-                    type="checkbox"
-                    checked={
-                      filteredProjects.length > 0 &&
-                      filteredProjects.every((p) => selectedProjectIds.includes(p.id))
-                    }
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setSelectedProjectIds(filteredProjects.map((p) => p.id));
-                      } else {
-                        setSelectedProjectIds([]);
-                      }
-                    }}
-                    className="h-3.5 w-3.5 rounded border-slate-300 text-[#1E3A8A]"
-                  />
-                  <span>Tất cả ({selectedProjectIds.length})</span>
-                </label>
-                <button
-                  type="button"
-                  disabled={selectedProjectIds.length === 0}
-                  onClick={requestBulkDeleteProjects}
-                  className="inline-flex items-center gap-1 rounded-lg bg-red-600 px-2.5 py-1 text-[11px] font-bold text-white shadow-2xs hover:bg-red-700 disabled:opacity-40"
-                >
-                  <Trash2 className="h-3 w-3" />
-                  <span>Xóa ({selectedProjectIds.length})</span>
-                </button>
-              </div>
-            )}
-
-            <div className="mb-2 shrink-0">
-              <input
-                type="text"
-                placeholder="Tìm tên dự án, mã Lead..."
-                value={searchProject}
-                onChange={(e) => setSearchProject(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-800 placeholder-slate-400 focus:border-[#2563EB] focus:bg-white focus:outline-none"
-              />
-            </div>
-
-            {/* Scrollable Project List */}
-            <div className="flex-1 min-h-0 overflow-y-auto space-y-1 pr-1">
-              {filteredProjects.map((proj) => {
-                const isSelected = proj.id === currentProject?.id;
-                const isCheckedForBulk = selectedProjectIds.includes(proj.id);
-                const photoThumb = resolveAssetUrl(proj.photos[0]?.url || proj.sitePhotoDownloadUrl);
-
-                return (
-                  <div
-                    key={proj.id}
-                    data-testid={`project-item-${proj.id}`}
-                    title={[
-                      proj.projectName,
-                      proj.leadCode ? `Lead ${proj.leadCode}` : null,
-                      proj.isArchived ? 'Đã lưu trữ' : null,
-                    ]
-                      .filter(Boolean)
-                      .join(' · ')}
+          {/* Nội dung đầy đủ (ẩn ở màn hình md+ khi đã thu gọn) */}
+          <div className={`${sidebarCollapsed ? 'md:hidden' : ''} flex min-h-0 flex-1 flex-col`}>
+            {/* SECTION A: "Dự án" (Compact Searchable List with Direct Add / Edit / Delete & Bulk Clean) */}
+            <div className="flex max-h-[45%] min-h-0 shrink-0 flex-col border-b border-slate-200 p-3">
+              <div className="mb-2 flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-1.5">
+                  <h2 className="text-base font-semibold text-slate-900 whitespace-nowrap">Dự án</h2>
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-600">
+                    {filteredProjects.length}
+                  </span>
+                </div>
+                <div className="flex items-center gap-0.5">
+                  <button
+                    type="button"
                     onClick={() => {
-                      syncProjectSelection(proj);
-                      setOpenMenuProjectId(null);
-                      setMobilePane('canvas');
+                      setBulkSelectMode((v) => {
+                        if (v) setSelectedProjectIds([]);
+                        return !v;
+                      });
                     }}
-                    className={`group relative flex w-full items-center justify-between rounded-xl px-2 py-1.5 text-left transition cursor-pointer border ${
-                      isSelected
-                        ? 'border-[#2563EB]/40 bg-blue-50/80 shadow-2xs'
-                        : 'border-transparent hover:border-slate-200/80 hover:bg-slate-50'
+                    aria-pressed={bulkSelectMode || selectedProjectIds.length > 0}
+                    aria-label={bulkSelectMode ? 'Bỏ chọn nhiều dự án' : 'Chọn nhiều dự án để xóa'}
+                    title={bulkSelectMode ? 'Bỏ chọn nhiều dự án' : 'Chọn nhiều dự án để xóa nhanh cùng lúc'}
+                    className={`${SIDEBAR_ICON_BTN} ${
+                      bulkSelectMode || selectedProjectIds.length > 0 ? '!bg-brand-soft !text-brand' : ''
                     }`}
                   >
-                    <div className="flex items-center gap-2 min-w-0 flex-1">
-                      {(bulkSelectMode || selectedProjectIds.length > 0) && (
-                        <input
-                          type="checkbox"
-                          checked={isCheckedForBulk}
-                          onClick={(e) => e.stopPropagation()}
-                          onChange={() => toggleSelectProjectId(proj.id)}
-                          className="h-3.5 w-3.5 shrink-0 rounded border-slate-300 text-[#1E3A8A]"
-                          title="Chọn dự án này"
-                        />
-                      )}
-                      <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-lg bg-slate-100 border border-slate-200">
-                        <img
-                          src={photoThumb}
-                          alt=""
-                          aria-hidden="true"
-                          className="h-full w-full object-cover"
-                        />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5">
-                          <span className="truncate text-sm font-semibold text-slate-900">
-                            {proj.projectName}
-                          </span>
-                          <span
-                            aria-label={proj.status === 'completed' ? 'Đã hoàn thành' : 'Đang thực hiện'}
-                            className={`h-2 w-2 shrink-0 rounded-full ${
-                              proj.isArchived
-                                ? 'bg-slate-300'
-                                : proj.status === 'completed'
-                                  ? 'bg-emerald-500'
-                                  : 'bg-blue-500'
-                            }`}
+                    <ListChecks className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowArchivedProjects((v) => !v)}
+                    aria-pressed={showArchivedProjects}
+                    aria-label={showArchivedProjects ? 'Ẩn dự án đã lưu trữ' : 'Hiện dự án đã lưu trữ'}
+                    title={showArchivedProjects ? 'Ẩn dự án đã lưu trữ' : 'Hiện dự án đã lưu trữ'}
+                    className={`${SIDEBAR_ICON_BTN} ${showArchivedProjects ? '!bg-amber-100 !text-amber-800' : ''}`}
+                  >
+                    <Archive className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="create-new-project-btn"
+                    onClick={() => setShowCreateModal(true)}
+                    className="ml-0.5 inline-flex h-7 items-center gap-1 rounded-lg bg-brand px-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-brand-deep focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>Mới</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Bulk Action Bar when bulkSelectMode is active or projects are ticked */}
+              {(bulkSelectMode || selectedProjectIds.length > 0) && (
+                <div className="mb-2 flex items-center justify-between rounded-xl border border-blue-200/80 bg-blue-50/60 px-2.5 py-1.5 text-xs shrink-0">
+                  <label className="flex cursor-pointer items-center gap-1.5 font-semibold text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={
+                        filteredProjects.length > 0 &&
+                        filteredProjects.every((p) => selectedProjectIds.includes(p.id))
+                      }
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedProjectIds(filteredProjects.map((p) => p.id));
+                        } else {
+                          setSelectedProjectIds([]);
+                        }
+                      }}
+                      className="h-3.5 w-3.5 rounded border-slate-300 text-[#1E3A8A]"
+                    />
+                    <span>Tất cả ({selectedProjectIds.length})</span>
+                  </label>
+                  <button
+                    type="button"
+                    disabled={selectedProjectIds.length === 0}
+                    onClick={requestBulkDeleteProjects}
+                    className="inline-flex items-center gap-1 rounded-lg bg-red-600 px-2.5 py-1 text-[11px] font-bold text-white shadow-2xs hover:bg-red-700 disabled:opacity-40"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                    <span>Xóa ({selectedProjectIds.length})</span>
+                  </button>
+                </div>
+              )}
+
+              <div className="mb-2 shrink-0">
+                <input
+                  type="text"
+                  placeholder="Tìm tên dự án, mã Lead..."
+                  value={searchProject}
+                  onChange={(e) => setSearchProject(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-800 placeholder-slate-400 focus:border-[#2563EB] focus:bg-white focus:outline-none"
+                />
+              </div>
+
+              {/* Scrollable Project List */}
+              <div className="flex-1 min-h-0 overflow-y-auto space-y-1 pr-1">
+                {filteredProjects.map((proj) => {
+                  const isSelected = proj.id === currentProject?.id;
+                  const isCheckedForBulk = selectedProjectIds.includes(proj.id);
+                  const photoThumb = resolveAssetUrl(proj.photos[0]?.url || proj.sitePhotoDownloadUrl);
+
+                  return (
+                    <div
+                      key={proj.id}
+                      data-testid={`project-item-${proj.id}`}
+                      title={[
+                        proj.projectName,
+                        proj.leadCode ? `Lead ${proj.leadCode}` : null,
+                        proj.isArchived ? 'Đã lưu trữ' : null,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
+                      onClick={() => {
+                        syncProjectSelection(proj);
+                        setOpenMenuProjectId(null);
+                        setMobilePane('canvas');
+                      }}
+                      className={`group relative flex w-full items-center justify-between rounded-xl px-2 py-1.5 text-left transition cursor-pointer border ${
+                        isSelected
+                          ? 'border-[#2563EB]/40 bg-blue-50/80 shadow-2xs'
+                          : 'border-transparent hover:border-slate-200/80 hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        {(bulkSelectMode || selectedProjectIds.length > 0) && (
+                          <input
+                            type="checkbox"
+                            checked={isCheckedForBulk}
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={() => toggleSelectProjectId(proj.id)}
+                            className="h-3.5 w-3.5 shrink-0 rounded border-slate-300 text-[#1E3A8A]"
+                            title="Chọn dự án này"
+                          />
+                        )}
+                        <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-lg bg-slate-100 border border-slate-200">
+                          <img
+                            src={photoThumb}
+                            alt=""
+                            aria-hidden="true"
+                            className="h-full w-full object-cover"
                           />
                         </div>
-                        <div className="truncate text-[11px] text-slate-500">
-                          {proj.leadCode
-                            ? `Lead: ${proj.leadCode}`
-                            : DESIGN_TYPE_LABELS[proj.designType]}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="truncate text-sm font-semibold text-slate-900">
+                              {proj.projectName}
+                            </span>
+                            <span
+                              aria-label={proj.status === 'completed' ? 'Đã hoàn thành' : 'Đang thực hiện'}
+                              className={`h-2 w-2 shrink-0 rounded-full ${
+                                proj.isArchived
+                                  ? 'bg-slate-300'
+                                  : proj.status === 'completed'
+                                    ? 'bg-emerald-500'
+                                    : 'bg-blue-500'
+                              }`}
+                            />
+                          </div>
+                          <div className="truncate text-[11px] text-slate-500">
+                            {proj.leadCode
+                              ? `Lead: ${proj.leadCode}`
+                              : DESIGN_TYPE_LABELS[proj.designType]}
+                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    {/* Direct Inline Action Buttons (Sửa, Lưu trữ, Xóa) right on the row */}
-                    <div
-                      className={`flex items-center gap-0.5 shrink-0 ml-1 transition-opacity ${
-                        isSelected ? 'opacity-100' : 'opacity-80 group-hover:opacity-100'
-                      }`}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <button
-                        type="button"
-                        data-testid={`edit-project-btn-${proj.id}`}
-                        aria-label={`Sửa dự án ${proj.projectName}`}
-                        title="Sửa nhanh dự án"
-                        onClick={() => openQuickEditProject(proj)}
-                        className="rounded-lg p-1.5 text-slate-500 hover:bg-white hover:text-[#1E3A8A] hover:shadow-2xs transition"
+                      {/* Direct Inline Action Buttons (Sửa, Lưu trữ, Xóa) right on the row */}
+                      <div
+                        className={`absolute bottom-1 right-1 flex items-center gap-0.5 rounded-lg transition-opacity ${
+                          isSelected
+                            ? 'bg-brand-soft opacity-100'
+                            : 'bg-slate-50 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100'
+                        }`}
+                        onClick={(e) => e.stopPropagation()}
                       >
-                        <Edit2 className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        aria-label={proj.isArchived ? 'Bỏ lưu trữ' : 'Lưu trữ dự án'}
-                        title={proj.isArchived ? 'Khôi phục dự án' : 'Lưu trữ dự án'}
-                        onClick={() => handleToggleArchiveProject(proj)}
-                        className="rounded-lg p-1.5 text-slate-400 hover:bg-white hover:text-amber-700 hover:shadow-2xs transition"
-                      >
-                        <Archive className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        data-testid={`delete-project-btn-${proj.id}`}
-                        aria-label={`Xóa dự án ${proj.projectName}`}
-                        title="Xóa dự án"
-                        onClick={() => requestDeleteProject(proj)}
-                        className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 transition"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
+                        <button
+                          type="button"
+                          data-testid={`edit-project-btn-${proj.id}`}
+                          aria-label={`Sửa dự án ${proj.projectName}`}
+                          title="Sửa nhanh dự án"
+                          onClick={() => openQuickEditProject(proj)}
+                          className="rounded-lg p-1 text-slate-500 hover:bg-white hover:text-[#1E3A8A] hover:shadow-2xs transition"
+                        >
+                          <Edit2 className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={proj.isArchived ? 'Bỏ lưu trữ' : 'Lưu trữ dự án'}
+                          title={proj.isArchived ? 'Khôi phục dự án' : 'Lưu trữ dự án'}
+                          onClick={() => handleToggleArchiveProject(proj)}
+                          className="rounded-lg p-1 text-slate-400 hover:bg-white hover:text-amber-700 hover:shadow-2xs transition"
+                        >
+                          <Archive className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          data-testid={`delete-project-btn-${proj.id}`}
+                          aria-label={`Xóa dự án ${proj.projectName}`}
+                          title="Xóa dự án"
+                          onClick={() => requestDeleteProject(proj)}
+                          className="rounded-lg p-1 text-slate-400 hover:bg-red-50 hover:text-red-600 transition"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* SECTION B: "Kho ảnh dự án" (Two Project-Scoped Folders: "Ảnh kỹ thuật" & "Bản thiết kế") */}
-          <div className="flex flex-col flex-1 min-h-0 p-3.5 bg-slate-50/50">
-            <div className="mb-2 flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-1.5">
-                <FolderOpen className="h-4 w-4 text-[#1E3A8A]" />
-                <h3 className="text-sm font-bold text-slate-900">Kho ảnh dự án</h3>
+                  );
+                })}
               </div>
-              <button
-                type="button"
-                onClick={() =>
-                  handleDownloadProjectZip(assetFolder === 'technical' ? 'technical' : 'designs')
-                }
-                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-[#1E3A8A] hover:bg-blue-50 transition"
-                title="Tải xuống thư mục đang chọn dưới dạng ZIP"
-              >
-                <Download className="h-3 w-3" />
-                <span>
-                  {selectedAssetIds.length > 0 ? `Tải ZIP (${selectedAssetIds.length})` : 'Tải ZIP'}
-                </span>
-              </button>
             </div>
 
-            {/* Folder Tabs: "Ảnh kỹ thuật" vs "Bản thiết kế" */}
-            <div className="mb-2.5 grid grid-cols-2 gap-1 rounded-xl bg-slate-200/70 p-1 text-xs font-bold shrink-0">
-              <button
-                type="button"
-                data-testid="folder-tab-technical"
-                onClick={() => setAssetFolder('technical')}
-                className={`rounded-lg py-1.5 transition ${
-                  assetFolder === 'technical'
-                    ? 'bg-white text-[#1E3A8A] shadow-2xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Ảnh kỹ thuật ({currentProject?.photos.length || 0})
-              </button>
-              <button
-                type="button"
-                data-testid="folder-tab-designs"
-                onClick={() => setAssetFolder('designs')}
-                className={`rounded-lg py-1.5 transition ${
-                  assetFolder === 'designs'
-                    ? 'bg-white text-[#1E3A8A] shadow-2xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Bản thiết kế ({currentProject?.assetVersions.length || 0})
-              </button>
-            </div>
+            {/* SECTION B: "Kho ảnh dự án" (Two Project-Scoped Folders: "Ảnh kỹ thuật" & "Bản thiết kế") */}
+            <div className="flex flex-col flex-1 min-h-0 p-3 bg-slate-50/50">
+              <div className="mb-2 flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-1.5">
+                  <FolderOpen className="h-4 w-4 text-[#1E3A8A]" />
+                  <h3 className="text-sm font-bold text-slate-900">Kho ảnh dự án</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleDownloadProjectZip(assetFolder === 'technical' ? 'technical' : 'designs')
+                  }
+                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-[#1E3A8A] hover:bg-blue-50 transition"
+                  title="Tải xuống thư mục đang chọn dưới dạng ZIP"
+                >
+                  <Download className="h-3 w-3" />
+                  <span>
+                    {selectedAssetIds.length > 0 ? `Tải ZIP (${selectedAssetIds.length})` : 'Tải ZIP'}
+                  </span>
+                </button>
+              </div>
 
-            {/* Folder Content List */}
-            <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-1">
-              {assetFolder === 'technical' ? (
-                <>
-                  <div className="grid grid-cols-2 gap-2">
-                    {currentProject?.photos.map((photo) => {
-                      const resolvedSrc = resolveAssetUrl(photo.url);
-                      const isChecked = selectedAssetIds.includes(photo.id);
-                      return (
-                        <div
-                          key={photo.id}
-                          onClick={async () => {
-                            if (!currentProject) return;
-                            setViewMode('original');
-                            await apiRequest(`/api/v1/design/${currentProject.id}`, {
-                              method: 'PATCH',
-                              csrfToken: user?.csrfToken,
-                              body: {
-                                action: 'update_project',
-                                selectedPhotoId: photo.id,
-                              },
-                            });
-                            await loadData(currentProject.id);
-                          }}
-                          className={`group relative cursor-pointer overflow-hidden rounded-xl border bg-white transition ${
-                            photo.selected
-                              ? 'border-[#2563EB] ring-2 ring-blue-500/20'
-                              : 'border-slate-200 hover:border-slate-300'
-                          }`}
-                        >
-                          <div className="relative aspect-video w-full bg-slate-900">
-                            <img
-                              src={resolvedSrc}
-                              alt={photo.name}
-                              className="h-full w-full object-cover"
-                            />
-                            <input
-                              type="checkbox"
-                              checked={isChecked}
-                              onClick={(e) => e.stopPropagation()}
-                              onChange={() => toggleAssetSelection(photo.id)}
-                              className="absolute left-1.5 top-1.5 h-3.5 w-3.5 rounded border-white"
-                              title="Chọn ảnh để tải gói ZIP"
-                            />
-                            {photo.selected && (
-                              <span className="absolute right-1.5 top-1.5 rounded bg-[#1E3A8A] px-1.5 py-0.5 text-[10px] font-bold text-white shadow">
-                                Đang dùng
-                              </span>
-                            )}
-                          </div>
-                          <div className="p-1.5 text-xs">
-                            <div className="truncate font-semibold text-slate-800">{photo.name}</div>
-                            <div
-                              className="mt-1 flex items-center justify-between text-[11px] text-slate-500"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  if (!currentProject) return;
-                                  const targetPid = currentProject.id;
-                                  setPromptModal({
-                                    title: 'Đổi tên ảnh kỹ thuật',
-                                    label: 'Tên hiển thị mới cho ảnh hiện trạng:',
-                                    value: photo.name,
-                                    placeholder: 'VD: Mặt tiền sảnh chính góc rộng',
-                                    onConfirm: async (nextName) => {
-                                      await apiRequest(`/api/v1/design/${targetPid}`, {
-                                        method: 'PATCH',
-                                        csrfToken: user?.csrfToken,
-                                        body: {
-                                          action: 'update_project',
-                                          renamePhotoId: photo.id,
-                                          renamePhotoName: nextName.trim(),
-                                        },
-                                      });
-                                      setSuccessToast(`Đã đổi tên ảnh kỹ thuật thành "${nextName.trim()}".`);
-                                      await loadData(targetPid);
-                                    },
-                                  });
-                                }}
-                                className="hover:text-[#2563EB]"
+              {/* Folder Tabs: "Ảnh kỹ thuật" vs "Bản thiết kế" */}
+              <div className="mb-2.5 grid grid-cols-2 gap-1 rounded-xl bg-slate-200/70 p-1 text-xs font-bold shrink-0">
+                <button
+                  type="button"
+                  data-testid="folder-tab-technical"
+                  onClick={() => setAssetFolder('technical')}
+                  className={`rounded-lg py-1.5 transition ${
+                    assetFolder === 'technical'
+                      ? 'bg-white text-[#1E3A8A] shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Ảnh kỹ thuật ({currentProject?.photos.length || 0})
+                </button>
+                <button
+                  type="button"
+                  data-testid="folder-tab-designs"
+                  onClick={() => setAssetFolder('designs')}
+                  className={`rounded-lg py-1.5 transition ${
+                    assetFolder === 'designs'
+                      ? 'bg-white text-[#1E3A8A] shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Bản thiết kế ({currentProject?.assetVersions.length || 0})
+                </button>
+              </div>
+
+              {/* Folder Content List */}
+              <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-1">
+                {assetFolder === 'technical' ? (
+                  <>
+                    <div className="flex flex-col gap-1.5">
+                      {currentProject?.photos.map((photo) => {
+                        const resolvedSrc = resolveAssetUrl(photo.url);
+                        const isChecked = selectedAssetIds.includes(photo.id);
+                        return (
+                          <div
+                            key={photo.id}
+                            onClick={async () => {
+                              if (!currentProject) return;
+                              setViewMode('original');
+                              await apiRequest(`/api/v1/design/${currentProject.id}`, {
+                                method: 'PATCH',
+                                csrfToken: user?.csrfToken,
+                                body: {
+                                  action: 'update_project',
+                                  selectedPhotoId: photo.id,
+                                },
+                              });
+                              await loadData(currentProject.id);
+                            }}
+                            className={`group relative flex cursor-pointer items-center gap-2 overflow-hidden rounded-lg border bg-white p-1.5 transition ${
+                              photo.selected
+                                ? 'border-[#2563EB] ring-2 ring-blue-500/20'
+                                : 'border-slate-200 hover:border-slate-300'
+                            }`}
+                          >
+                            <div className="relative h-11 w-[76px] shrink-0 overflow-hidden rounded-md bg-slate-900">
+                              <img
+                                src={resolvedSrc}
+                                alt={photo.name}
+                                className="h-full w-full object-cover"
+                              />
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onClick={(e) => e.stopPropagation()}
+                                onChange={() => toggleAssetSelection(photo.id)}
+                                className="absolute left-1 top-1 h-3 w-3 rounded border-white"
+                                title="Chọn ảnh để tải gói ZIP"
+                              />
+                              {photo.selected && (
+                                <span className="absolute inset-x-0 bottom-0 bg-brand/90 py-px text-center text-[9px] font-bold text-white">
+                                  Đang dùng
+                                </span>
+                              )}
+                            </div>
+                            <div className="min-w-0 flex-1 text-xs">
+                              <div className="truncate font-semibold text-slate-800" title={photo.name}>
+                                {photo.name}
+                              </div>
+                              <div
+                                className="mt-1 flex items-center gap-3 text-[11px] text-slate-500"
+                                onClick={(e) => e.stopPropagation()}
                               >
-                                Đổi tên
-                              </button>
-                              <a
-                                href={resolvedSrc}
-                                download={photo.name}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="hover:text-[#1E3A8A]"
-                              >
-                                Tải
-                              </a>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  if (!currentProject) return;
-                                  const targetPid = currentProject.id;
-                                  setConfirmModal({
-                                    title: 'Xóa ảnh kỹ thuật',
-                                    subtitle: `Dự án: ${currentProject.projectName}`,
-                                    message: `Bạn có chắc chắn muốn xóa ảnh hiện trạng "${photo.name}" khỏi kho ảnh dự án?`,
-                                    confirmLabel: 'Xóa ảnh này',
-                                    onConfirm: async () => {
-                                      await apiRequest(
-                                        `/api/v1/design/${targetPid}?photoId=${encodeURIComponent(photo.id)}`,
-                                        {
-                                          method: 'DELETE',
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (!currentProject) return;
+                                    const targetPid = currentProject.id;
+                                    setPromptModal({
+                                      title: 'Đổi tên ảnh kỹ thuật',
+                                      label: 'Tên hiển thị mới cho ảnh hiện trạng:',
+                                      value: photo.name,
+                                      placeholder: 'VD: Mặt tiền sảnh chính góc rộng',
+                                      onConfirm: async (nextName) => {
+                                        await apiRequest(`/api/v1/design/${targetPid}`, {
+                                          method: 'PATCH',
                                           csrfToken: user?.csrfToken,
-                                        }
-                                      );
-                                      setSuccessToast(`Đã xóa ảnh kỹ thuật "${photo.name}".`);
-                                      await loadData(targetPid);
-                                    },
-                                  });
-                                }}
-                                className="hover:text-red-600"
-                              >
-                                Xóa
-                              </button>
+                                          body: {
+                                            action: 'update_project',
+                                            renamePhotoId: photo.id,
+                                            renamePhotoName: nextName.trim(),
+                                          },
+                                        });
+                                        setSuccessToast(`Đã đổi tên ảnh kỹ thuật thành "${nextName.trim()}".`);
+                                        await loadData(targetPid);
+                                      },
+                                    });
+                                  }}
+                                  className="hover:text-[#2563EB]"
+                                >
+                                  Đổi tên
+                                </button>
+                                <a
+                                  href={resolvedSrc}
+                                  download={photo.name}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="hover:text-[#1E3A8A]"
+                                >
+                                  Tải
+                                </a>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (!currentProject) return;
+                                    const targetPid = currentProject.id;
+                                    setConfirmModal({
+                                      title: 'Xóa ảnh kỹ thuật',
+                                      subtitle: `Dự án: ${currentProject.projectName}`,
+                                      message: `Bạn có chắc chắn muốn xóa ảnh hiện trạng "${photo.name}" khỏi kho ảnh dự án?`,
+                                      confirmLabel: 'Xóa ảnh này',
+                                      onConfirm: async () => {
+                                        await apiRequest(
+                                          `/api/v1/design/${targetPid}?photoId=${encodeURIComponent(photo.id)}`,
+                                          {
+                                            method: 'DELETE',
+                                            csrfToken: user?.csrfToken,
+                                          }
+                                        );
+                                        setSuccessToast(`Đã xóa ảnh kỹ thuật "${photo.name}".`);
+                                        await loadData(targetPid);
+                                      },
+                                    });
+                                  }}
+                                  className="hover:text-red-600"
+                                >
+                                  Xóa
+                                </button>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                        );
+                      })}
+                    </div>
 
-                  {/* Upload Multiple Technical Photos & Import from Lead */}
-                  <div className="pt-1 space-y-1.5">
-                    <label className="flex cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-dashed border-slate-300 bg-white py-2 text-xs font-semibold text-slate-700 transition hover:border-[#2563EB] hover:bg-blue-50/40 hover:text-[#1E3A8A]">
-                      <Upload className="h-3.5 w-3.5" />
-                      <span>{uploadingPhoto ? 'Đang tải ảnh...' : 'Tải ảnh kỹ thuật (Nhiều tệp)'}</span>
-                      <input
-                        type="file"
-                        multiple
-                        accept="image/png,image/jpeg,image/webp"
-                        className="hidden"
-                        onChange={handleUploadTechnicalPhotos}
-                      />
-                    </label>
+                    {/* Upload Multiple Technical Photos & Import from Lead */}
+                    <div className="pt-1 space-y-1.5">
+                      <label className="flex cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-dashed border-slate-300 bg-white py-2 text-xs font-semibold text-slate-700 transition hover:border-[#2563EB] hover:bg-blue-50/40 hover:text-[#1E3A8A]">
+                        <Upload className="h-3.5 w-3.5" />
+                        <span>{uploadingPhoto ? 'Đang tải ảnh...' : 'Tải ảnh kỹ thuật (Nhiều tệp)'}</span>
+                        <input
+                          type="file"
+                          multiple
+                          accept="image/png,image/jpeg,image/webp"
+                          className="hidden"
+                          onChange={handleUploadTechnicalPhotos}
+                        />
+                      </label>
 
-                    {currentProject?.leadId && (
-                      <button
-                        type="button"
-                        onClick={handleImportLeadPhotos}
-                        className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50/60 py-1.5 text-xs font-semibold text-[#1E3A8A] hover:bg-blue-100 transition"
-                      >
-                        <ImageIcon className="h-3.5 w-3.5" />
-                        <span>Nhập ảnh khảo sát từ hồ sơ Lead</span>
-                      </button>
-                    )}
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="grid grid-cols-2 gap-2">
-                    {currentProject?.assetVersions.map((ver) => {
-                      const thumbUrl = `/api/v1/design/asset/${ver.id}`;
-                      const isSelectedVer = ver.id === currentVersion?.id;
-                      const isChecked = selectedAssetIds.includes(`ver-${ver.id}`);
-                      return (
-                        <div
-                          key={ver.id}
-                          onClick={() => {
-                            setSelectedVersionId(ver.id);
-                            setViewMode('result');
-                            setActiveWorkspaceArea('perspective');
-                          }}
-                          className={`group relative cursor-pointer overflow-hidden rounded-xl border bg-white transition ${
-                            isSelectedVer
-                              ? 'border-[#2563EB] ring-2 ring-blue-500/20'
-                              : 'border-slate-200 hover:border-slate-300'
-                          }`}
+                      {currentProject?.leadId && (
+                        <button
+                          type="button"
+                          onClick={handleImportLeadPhotos}
+                          className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50/60 py-1.5 text-xs font-semibold text-[#1E3A8A] hover:bg-blue-100 transition"
                         >
-                          <div className="relative aspect-video w-full bg-slate-900">
-                            <img
-                              src={thumbUrl}
-                              alt={`Phiên bản v${ver.versionNumber}`}
-                              className="h-full w-full object-cover"
-                            />
-                            <input
-                              type="checkbox"
-                              checked={isChecked}
-                              onClick={(e) => e.stopPropagation()}
-                              onChange={() => toggleAssetSelection(`ver-${ver.id}`)}
-                              className="absolute left-1.5 top-1.5 h-3.5 w-3.5 rounded border-white"
-                              title="Chọn bản thiết kế để tải ZIP"
-                            />
-                            {ver.isApprovedFinal && (
-                              <span className="absolute right-1.5 top-1.5 rounded bg-emerald-600 px-1.5 py-0.5 text-[10px] font-bold text-white shadow">
-                                Bản chốt
-                              </span>
-                            )}
-                          </div>
-                          <div className="p-1.5 text-xs">
-                            <div className="truncate font-bold text-slate-800">
-                              v{ver.versionNumber} ·{' '}
-                              {ver.sourceType === 'DESIGNER_FINAL_UPLOAD'
-                                ? 'Bản Designer'
-                                : ver.modelUsed || 'Bản AI'}
+                          <ImageIcon className="h-3.5 w-3.5" />
+                          <span>Nhập ảnh khảo sát từ hồ sơ Lead</span>
+                        </button>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex flex-col gap-1.5">
+                      {currentProject?.assetVersions.map((ver) => {
+                        const thumbUrl = `/api/v1/design/asset/${ver.id}`;
+                        const isSelectedVer = ver.id === currentVersion?.id;
+                        const isChecked = selectedAssetIds.includes(`ver-${ver.id}`);
+                        return (
+                          <div
+                            key={ver.id}
+                            onClick={() => {
+                              setSelectedVersionId(ver.id);
+                              setViewMode('result');
+                              setActiveWorkspaceArea('perspective');
+                            }}
+                            className={`group relative flex cursor-pointer items-center gap-2 overflow-hidden rounded-lg border bg-white p-1.5 transition ${
+                              isSelectedVer
+                                ? 'border-[#2563EB] ring-2 ring-blue-500/20'
+                                : 'border-slate-200 hover:border-slate-300'
+                            }`}
+                          >
+                            <div className="relative h-11 w-[76px] shrink-0 overflow-hidden rounded-md bg-slate-900">
+                              <img
+                                src={thumbUrl}
+                                alt={`Phiên bản v${ver.versionNumber}`}
+                                className="h-full w-full object-cover"
+                              />
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onClick={(e) => e.stopPropagation()}
+                                onChange={() => toggleAssetSelection(`ver-${ver.id}`)}
+                                className="absolute left-1 top-1 h-3 w-3 rounded border-white"
+                                title="Chọn bản thiết kế để tải ZIP"
+                              />
+                              {ver.isApprovedFinal && (
+                                <span className="absolute inset-x-0 bottom-0 bg-emerald-600/90 py-px text-center text-[9px] font-bold text-white">
+                                  Bản chốt
+                                </span>
+                              )}
                             </div>
-                            <div className="truncate text-[11px] text-slate-500">
-                              {ver.promptUsed || `Phiên bản v${ver.versionNumber}`}
-                            </div>
-                            <div
-                              className="mt-1 flex items-center justify-between text-[11px] text-slate-500"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  if (!currentProject) return;
-                                  const targetPid = currentProject.id;
-                                  setPromptModal({
-                                    title: `Đổi tên / ghi chú phiên bản v${ver.versionNumber}`,
-                                    label: 'Tên hoặc ghi chú hiển thị của phiên bản thiết kế:',
-                                    value: ver.promptUsed || `Bản thiết kế v${ver.versionNumber}`,
-                                    placeholder: 'VD: Bản chốt phối cảnh sảnh chính P2.5',
-                                    onConfirm: async (nextLabel) => {
-                                      await apiRequest(`/api/v1/design/${targetPid}`, {
-                                        method: 'PATCH',
-                                        csrfToken: user?.csrfToken,
-                                        body: {
-                                          action: 'update_project',
-                                          renameVersionId: ver.id,
-                                          renameVersionLabel: nextLabel.trim(),
-                                        },
-                                      });
-                                      setSuccessToast(`Đã cập nhật ghi chú phiên bản v${ver.versionNumber}.`);
-                                      await loadData(targetPid);
-                                    },
-                                  });
-                                }}
-                                className="hover:text-[#2563EB]"
+                            <div className="min-w-0 flex-1 text-xs">
+                              <div className="truncate font-bold text-slate-800">
+                                v{ver.versionNumber} ·{' '}
+                                {ver.sourceType === 'DESIGNER_FINAL_UPLOAD'
+                                  ? 'Bản Designer'
+                                  : ver.modelUsed || 'Bản AI'}
+                              </div>
+                              <div className="truncate text-[11px] text-slate-500">
+                                {ver.promptUsed || `Phiên bản v${ver.versionNumber}`}
+                              </div>
+                              <div
+                                className="mt-1 flex items-center gap-3 text-[11px] text-slate-500"
+                                onClick={(e) => e.stopPropagation()}
                               >
-                                Đổi tên
-                              </button>
-                              <a
-                                href={thumbUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="font-semibold text-[#1E3A8A] hover:underline"
-                              >
-                                Tải ảnh
-                              </a>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (!currentProject) return;
+                                    const targetPid = currentProject.id;
+                                    setPromptModal({
+                                      title: `Đổi tên / ghi chú phiên bản v${ver.versionNumber}`,
+                                      label: 'Tên hoặc ghi chú hiển thị của phiên bản thiết kế:',
+                                      value: ver.promptUsed || `Bản thiết kế v${ver.versionNumber}`,
+                                      placeholder: 'VD: Bản chốt phối cảnh sảnh chính P2.5',
+                                      onConfirm: async (nextLabel) => {
+                                        await apiRequest(`/api/v1/design/${targetPid}`, {
+                                          method: 'PATCH',
+                                          csrfToken: user?.csrfToken,
+                                          body: {
+                                            action: 'update_project',
+                                            renameVersionId: ver.id,
+                                            renameVersionLabel: nextLabel.trim(),
+                                          },
+                                        });
+                                        setSuccessToast(`Đã cập nhật ghi chú phiên bản v${ver.versionNumber}.`);
+                                        await loadData(targetPid);
+                                      },
+                                    });
+                                  }}
+                                  className="hover:text-[#2563EB]"
+                                >
+                                  Đổi tên
+                                </button>
+                                <a
+                                  href={thumbUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="font-semibold text-[#1E3A8A] hover:underline"
+                                >
+                                  Tải ảnh
+                                </a>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                        );
+                      })}
+                    </div>
 
-                  {/* Upload Final Render by Designer */}
-                  {canUseAiDesign && (
-                    <label className="mt-1 flex cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-dashed border-blue-300 bg-white py-2 text-xs font-semibold text-[#1E3A8A] transition hover:bg-blue-50">
-                      <Upload className="h-3.5 w-3.5" />
-                      <span>
-                        {uploadingFinalFile ? 'Đang tải bản chốt...' : 'Tải bản thiết kế hoàn thiện'}
-                      </span>
-                      <input
-                        type="file"
-                        accept="image/png,image/jpeg,image/webp"
-                        className="hidden"
-                        onChange={handleUploadDesignerFinal}
-                      />
-                    </label>
-                  )}
-                </>
-              )}
+                    {/* Upload Final Render by Designer */}
+                    {canUseAiDesign && (
+                      <label className="mt-1 flex cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-dashed border-blue-300 bg-white py-2 text-xs font-semibold text-[#1E3A8A] transition hover:bg-blue-50">
+                        <Upload className="h-3.5 w-3.5" />
+                        <span>
+                          {uploadingFinalFile ? 'Đang tải bản chốt...' : 'Tải bản thiết kế hoàn thiện'}
+                        </span>
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp"
+                          className="hidden"
+                          onChange={handleUploadDesignerFinal}
+                        />
+                      </label>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </aside>
+        </div>
 
         {/* ================= MAIN WORKSPACE AREA ================= */}
         {activeWorkspaceArea === 'specs' ? (
           /* FULL-WIDTH "THÔNG SỐ" WORKSPACE AREA */
-          <div className="flex-1 overflow-y-auto p-5 bg-slate-100">
+          <div className="min-w-0 flex-1 overflow-y-auto p-5 bg-slate-100">
             <div className="mx-auto max-w-6xl space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-3.5 shadow-2xs">
                 <div>
@@ -2617,7 +2790,7 @@ export function AiDesignWorkspace() {
             <div
               className={`${
                 mobilePane === 'canvas' ? 'flex' : 'hidden md:flex'
-              } flex-1 flex-col overflow-hidden bg-slate-100`}
+              } min-w-0 flex-1 flex-col overflow-hidden bg-slate-100`}
             >
               {/* MAIN CENTERED CANVAS */}
               <div className="relative flex-1 min-h-0 overflow-hidden p-2 flex items-center justify-center [container-type:size]">
@@ -2991,116 +3164,174 @@ export function AiDesignWorkspace() {
                 </div>
               </div>
 
-              {/* Dải phiên bản: 1 hàng gọn */}
-              <div className="shrink-0 border-t border-slate-200 bg-white px-3 py-2 flex items-center gap-3">
-                <span className="text-[13px] font-semibold text-slate-700 whitespace-nowrap">
-                  Phiên bản ({currentProject?.assetVersions.length || 0})
-                </span>
-                <div className="flex flex-1 min-w-0 items-center gap-2 overflow-x-auto">
-                  {(currentProject?.assetVersions.length || 0) === 0 && (
-                    <span className="text-[13px] text-slate-500">Chưa có phiên bản nào.</span>
-                  )}
-                  {currentProject?.assetVersions.map((ver) => {
-                    const isSelected = ver.id === currentVersion?.id;
-                    return (
-                      <button
-                        key={ver.id}
-                        type="button"
-                        data-testid={`version-card-v${ver.versionNumber}`}
-                        title={`Phiên bản v${ver.versionNumber}${ver.isApprovedFinal ? ' · Đã duyệt' : ''}`}
-                        onClick={() => {
-                          setSelectedVersionId(ver.id);
-                          if (viewMode === 'original') setViewMode('result');
-                        }}
-                        className={`relative shrink-0 h-10 w-16 overflow-hidden rounded-md border-2 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3A8A] ${
-                          isSelected ? 'border-[#2563EB]' : 'border-transparent hover:border-slate-300'
-                        }`}
+              {/* DƯỚI: dải phiên bản — tay nắm ghim cùng kiểu với 3 cạnh còn lại.
+                  Khi ẩn, wrapper cao 0 và tay nắm nằm hẳn bên trong (inset) nên không bị cắt. */}
+              <div className="relative shrink-0">
+                <PanelToggleButton
+                  side="bottom"
+                  open={!versionsHidden}
+                  inset={versionsHidden}
+                  onToggle={toggleVersions}
+                  label="dải phiên bản"
+                  testId="versions-toggle-btn"
+                />
+                {!versionsHidden && (
+                  <div className="border-t border-slate-200 bg-white px-3 py-2 flex items-center gap-3">
+                    <span className="text-[13px] font-semibold text-slate-700 whitespace-nowrap">
+                      Phiên bản ({currentProject?.assetVersions.length || 0})
+                    </span>
+                    <div className="flex flex-1 min-w-0 items-center gap-2 overflow-x-auto">
+                      {(currentProject?.assetVersions.length || 0) === 0 && (
+                        <span className="text-[13px] text-slate-500">Chưa có phiên bản nào.</span>
+                      )}
+                      {currentProject?.assetVersions.map((ver) => {
+                        const isSelected = ver.id === currentVersion?.id;
+                        return (
+                          <button
+                            key={ver.id}
+                            type="button"
+                            data-testid={`version-card-v${ver.versionNumber}`}
+                            title={`Phiên bản v${ver.versionNumber}${ver.isApprovedFinal ? ' · Đã duyệt' : ''}`}
+                            onClick={() => {
+                              setSelectedVersionId(ver.id);
+                              if (viewMode === 'original') setViewMode('result');
+                            }}
+                            className={`relative shrink-0 h-10 w-16 overflow-hidden rounded-md border-2 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3A8A] ${
+                              isSelected ? 'border-[#2563EB]' : 'border-transparent hover:border-slate-300'
+                            }`}
+                          >
+                            <img
+                              src={`/api/v1/design/asset/${ver.id}`}
+                              alt={`Phiên bản v${ver.versionNumber}`}
+                              className="h-full w-full object-cover bg-slate-900"
+                            />
+                            <span className="absolute bottom-0 left-0 rounded-tr bg-slate-900/80 px-1 text-[11px] font-semibold text-white">
+                              v{ver.versionNumber}
+                            </span>
+                            {ver.isApprovedFinal && (
+                              <span className="absolute right-0.5 top-0.5 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-white" />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {currentVersion && (
+                      <a
+                        href={`/api/v1/design/asset/${currentVersion.id}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="shrink-0 inline-flex items-center gap-1 text-[13px] font-semibold text-[#1E3A8A] hover:underline"
                       >
-                        <img
-                          src={`/api/v1/design/asset/${ver.id}`}
-                          alt={`Phiên bản v${ver.versionNumber}`}
-                          className="h-full w-full object-cover bg-slate-900"
-                        />
-                        <span className="absolute bottom-0 left-0 rounded-tr bg-slate-900/80 px-1 text-[11px] font-semibold text-white">
-                          v{ver.versionNumber}
-                        </span>
-                        {ver.isApprovedFinal && (
-                          <span className="absolute right-0.5 top-0.5 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-white" />
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-                {currentVersion && (
-                  <a
-                    href={`/api/v1/design/asset/${currentVersion.id}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="shrink-0 inline-flex items-center gap-1 text-[13px] font-semibold text-[#1E3A8A] hover:underline"
-                  >
-                    <Download className="h-3.5 w-3.5" />
-                    Tải v{currentVersion.versionNumber}
-                  </a>
+                        <Download className="h-3.5 w-3.5" />
+                        Tải v{currentVersion.versionNumber}
+                      </a>
+                    )}
+                  </div>
                 )}
               </div>
             </div>
 
-            {/* ================= RIGHT STUDIO DOCK: "TRỢ LÝ AI" & COMPACT "THÔNG SỐ" ================= */}
-            <aside
-              className={`${
+            {/* ================= PHẢI: "TRỢ LÝ AI" & "THÔNG SỐ" =================
+                Wrapper `relative` KHÔNG overflow-hidden để tay nắm ghim ở mép trái luôn nhìn thấy.
+                Mọi tầng trong dock đều có min-w-0 để tab Thông số co giãn theo thay vì bị xén. */}
+            <div
+              className={`relative flex shrink-0 ${
                 mobilePane === 'assistant' || activeWorkspaceArea === 'assistant'
-                  ? 'flex w-full md:w-80 xl:w-[22rem]'
+                  ? 'w-full'
                   : focusCanvas
-                ? 'hidden'
-                : 'hidden xl:flex xl:w-[22rem]'
-              } shrink-0 flex-col border-l border-slate-200 bg-white h-full min-h-0`}
+                    ? 'hidden'
+                    : 'hidden xl:flex'
+              } ${
+                rightCollapsed ? 'md:w-12 xl:w-12' : 'md:w-80 xl:w-[22rem]'
+              } transition-[width] duration-150 motion-reduce:transition-none`}
             >
-              {/* Side Dock Switcher */}
-              <div className="flex h-11 shrink-0 items-center justify-between border-b border-slate-200 px-4">
-                <div className="flex items-center gap-2">
+              <PanelToggleButton
+                side="right"
+                open={!rightCollapsed}
+                onToggle={() => setRightCollapsedPersist(!rightCollapsed)}
+                label="cột Trợ lý AI và Thông số"
+                className="hidden md:grid"
+                testId={rightCollapsed ? 'dock-expand-btn' : 'dock-collapse-btn'}
+              />
+            <aside className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden border-l border-slate-200 bg-white">
+              {/* Thanh hẹp khi thu gọn: lối tắt 2 tab (nút hiện lại là tay nắm ghim ở mép) */}
+              {rightCollapsed && (
+                <div
+                  data-testid="dock-rail"
+                  className="hidden h-full min-h-0 flex-col items-center gap-2 py-2 md:flex"
+                >
                   <button
                     type="button"
                     onClick={() => {
                       setSideDockTab('assistant');
-                      setActiveWorkspaceArea('assistant');
+                      setRightCollapsedPersist(false);
                     }}
-                    className={`flex items-center gap-1.5 whitespace-nowrap py-2.5 text-sm font-semibold border-b-2 transition ${
-                      sideDockTab === 'assistant'
-                        ? 'border-[#1E3A8A] text-[#1E3A8A]'
-                        : 'border-transparent text-slate-500 hover:text-slate-800'
-                    }`}
+                    aria-label="Tạo ảnh AI"
+                    title="Tạo ảnh AI"
+                    className={SIDEBAR_ICON_BTN}
                   >
-                    <Sparkles className="h-4 w-4 text-[#2563EB]" />
-                    <span>Tạo ảnh AI</span>
+                    <Sparkles className="h-4 w-4 text-brand" />
                   </button>
                   <button
                     type="button"
-                    onClick={() => setSideDockTab('specs')}
-                    className={`flex items-center gap-1.5 whitespace-nowrap py-2.5 text-sm font-semibold border-b-2 transition ml-4 ${
-                      sideDockTab === 'specs'
-                        ? 'border-[#1E3A8A] text-[#1E3A8A]'
-                        : 'border-transparent text-slate-500 hover:text-slate-800'
-                    }`}
+                    onClick={() => {
+                      setSideDockTab('specs');
+                      setRightCollapsedPersist(false);
+                    }}
+                    aria-label="Thông số"
+                    title="Thông số"
+                    className={SIDEBAR_ICON_BTN}
                   >
-                    <Settings2 className="h-4 w-4 text-slate-500" />
-                    <span>Thông số</span>
+                    <Settings2 className="h-4 w-4" />
                   </button>
                 </div>
+              )}
 
+              {/* Nội dung đầy đủ (ẩn ở md+ khi đã thu gọn) */}
+              <div className={`${rightCollapsed ? 'md:hidden' : ''} flex min-h-0 min-w-0 flex-1 flex-col`}>
+              {/* Side Dock Switcher: tab không co, thanh tab tự cuộn ngang khi cột hẹp */}
+              <div className="flex h-11 shrink-0 items-center gap-4 overflow-x-auto border-b border-slate-200 px-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSideDockTab('assistant');
+                    setActiveWorkspaceArea('assistant');
+                  }}
+                  className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap py-2.5 text-sm font-semibold border-b-2 transition ${
+                    sideDockTab === 'assistant'
+                      ? 'border-[#1E3A8A] text-[#1E3A8A]'
+                      : 'border-transparent text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  <Sparkles className="h-4 w-4 text-[#2563EB]" />
+                  <span>Tạo ảnh AI</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSideDockTab('specs')}
+                  className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap py-2.5 text-sm font-semibold border-b-2 transition ${
+                    sideDockTab === 'specs'
+                      ? 'border-[#1E3A8A] text-[#1E3A8A]'
+                      : 'border-transparent text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  <Settings2 className="h-4 w-4 text-slate-500" />
+                  <span>Thông số</span>
+                </button>
               </div>
 
               {sideDockTab === 'assistant' ? (
-                <div className="flex flex-1 flex-col min-h-0 overflow-hidden p-3.5">
+                <div className="flex min-w-0 flex-1 flex-col min-h-0 overflow-hidden p-3.5">
                   {/* Context Summary Card */}
                   <div className="mb-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs space-y-1">
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-slate-900">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="min-w-0 truncate font-bold text-slate-900">
                         {paramForm.projectName} ({paramForm.pixelPitch})
                       </span>
                       <button
                         type="button"
                         onClick={() => setActiveWorkspaceArea('specs')}
-                        className="font-semibold text-[#2563EB] hover:underline"
+                        className="shrink-0 font-semibold text-[#2563EB] hover:underline"
                       >
                         Sửa thông số
                       </button>
@@ -3119,7 +3350,7 @@ export function AiDesignWorkspace() {
                     <div className="flex items-center justify-between">
                       <span className="inline-flex items-center gap-1.5 font-bold text-[#1E3A8A]">
                         <Cpu className="h-3.5 w-3.5 text-[#2563EB]" />
-                        <span>Chọn Con AI & Model thực thi</span>
+                        <span>AI & Model</span>
                       </span>
                       <button
                         type="button"
@@ -3137,12 +3368,12 @@ export function AiDesignWorkspace() {
                         className="inline-flex items-center gap-1 rounded-md bg-white px-2 py-0.5 text-[11px] font-bold text-[#2563EB] border border-blue-200 hover:bg-blue-50"
                       >
                         <KeyRound className="h-3 w-3" />
-                        <span>Cấu hình Đa AI</span>
+                        <span>Cấu hình</span>
                       </button>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-1.5">
-                      <div>
+                    <div className="grid grid-cols-[repeat(auto-fit,minmax(8rem,1fr))] gap-1.5">
+                      <div className="min-w-0">
                         <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">
                           Nền tảng AI (Provider)
                         </label>
@@ -3159,7 +3390,7 @@ export function AiDesignWorkspace() {
                               setSelectedModelId(cat.activeModel || cat.models[0].id);
                             }
                           }}
-                          className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-800 focus:border-[#2563EB] focus:outline-none"
+                          className="w-full min-w-0 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-800 focus:border-[#2563EB] focus:outline-none"
                         >
                           {(providerStatus?.availableProviders || []).map((prov) => (
                             <option key={prov.providerId} value={prov.providerId}>
@@ -3169,7 +3400,7 @@ export function AiDesignWorkspace() {
                         </select>
                       </div>
 
-                      <div>
+                      <div className="min-w-0">
                         <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">
                           Mô hình (Model)
                         </label>
@@ -3177,7 +3408,7 @@ export function AiDesignWorkspace() {
                           data-testid="ai-model-select"
                           value={selectedModelId}
                           onChange={(e) => setSelectedModelId(e.target.value)}
-                          className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-800 focus:border-[#2563EB] focus:outline-none"
+                          className="w-full min-w-0 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-800 focus:border-[#2563EB] focus:outline-none"
                         >
                           {(
                             providerStatus?.availableProviders?.find(
@@ -3199,7 +3430,7 @@ export function AiDesignWorkspace() {
                   </div>
 
                   {/* Conversation History */}
-                  <div className="min-h-0 shrink space-y-3 overflow-y-auto pr-1 text-sm">
+                  <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1 text-sm">
                     {currentProject?.chatMessages.map((msg) => {
                       const isUser = msg.role === 'user';
                       return (
@@ -3246,17 +3477,17 @@ export function AiDesignWorkspace() {
 
                   {/* Quick Prompt Suggestions by LED Scenario */}
                   <div className="mt-3 space-y-1.5 shrink-0">
-                    <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500">
-                      <span>Mẫu Prompt chuẩn kỹ thuật LED Toàn Trung:</span>
+                    <div className="flex items-center justify-between gap-2 text-[11px] font-semibold text-slate-500">
+                      <span className="min-w-0 truncate">Mẫu Prompt chuẩn kỹ thuật LED Toàn Trung:</span>
                       <button
                         type="button"
                         onClick={() => setViewMode('live_3d')}
-                        className="text-[#2563EB] hover:underline font-bold"
+                        className="shrink-0 text-[#2563EB] hover:underline font-bold"
                       >
                         Mở Ghép 3D Thực tế →
                       </button>
                     </div>
-                    <div className="flex flex-wrap gap-1.5">
+                    <div className="flex gap-1.5 overflow-x-auto pb-1">
                       {[
                         {
                           tag: 'Hội trường P2.5',
@@ -3283,7 +3514,7 @@ export function AiDesignWorkspace() {
                           key={item.tag}
                           type="button"
                           onClick={() => handlePromptChange(item.prompt)}
-                          className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-medium text-slate-700 hover:border-blue-300 hover:bg-blue-50 hover:text-[#1E3A8A] transition"
+                          className="shrink-0 whitespace-nowrap rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-medium text-slate-700 hover:border-blue-300 hover:bg-blue-50 hover:text-[#1E3A8A] transition"
                           title={item.prompt}
                         >
                           + {item.tag}
@@ -3301,7 +3532,6 @@ export function AiDesignWorkspace() {
                   )}
 
                   {/* Prompt Composer */}
-                  <div className="flex-1" />
                   <form
                     onSubmit={handleSendChatEdit}
                     className="mt-2.5 shrink-0 pt-2.5 border-t border-slate-200"
@@ -3312,10 +3542,10 @@ export function AiDesignWorkspace() {
                       value={chatPrompt}
                       onChange={(e) => handlePromptChange(e.target.value)}
                       placeholder={aiConnected ? 'Mô tả yêu cầu dựng phối cảnh / chỉnh nội dung màn hình LED…' : 'Chưa kết nối AI — yêu cầu sẽ tạo ảnh mô phỏng để thử quy trình…'}
-                      className="w-full resize-none rounded-xl border border-slate-200 p-2.5 text-sm text-slate-900 placeholder-slate-400 focus:border-[#2563EB] focus:outline-none"
+                      className="w-full min-w-0 resize-none rounded-xl border border-slate-200 p-2.5 text-sm text-slate-900 placeholder-slate-400 focus:border-[#2563EB] focus:outline-none"
                     />
 
-                    <div className="mt-2 flex items-center justify-between gap-2">
+                    <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
                       <div className="flex items-center gap-1.5 text-xs text-slate-600">
                         <span className="font-semibold whitespace-nowrap">Chế độ</span>
                         <select
@@ -3352,11 +3582,13 @@ export function AiDesignWorkspace() {
                   </form>
                 </div>
               ) : (
-                <div className="flex-1 min-h-0 overflow-y-auto p-3.5">
+                <div className="min-w-0 flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3.5">
                   {renderParametersFormContent(true)}
                 </div>
               )}
+              </div>
             </aside>
+            </div>
           </>
         )}
       </div>
