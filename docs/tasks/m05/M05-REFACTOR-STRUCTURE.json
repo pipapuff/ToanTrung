@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "M05-REFACTOR-STRUCTURE",
+  "status": "ready",
+  "modules": ["05-ai-design"],
+  "title": "Tách cấu trúc module 05-ai-design (không đổi hành vi)",
+  "goal": "Tách AiDesignWorkspace.tsx (~4.100 dòng), service.ts (~1.500 dòng) và contracts/05-ai-design/index.ts thành các file nhỏ theo trách nhiệm. Giữ nguyên UI, URL API, tên action, quyền, schema DB và đường dẫn import công khai.",
+  "acceptanceCriteria": [
+    "AiDesignWorkspace.tsx chỉ còn bọc StudioProvider + StudioLayout; component con nằm trong components theo thư mục toolbar/sidebar/canvas/dock/params/modals.",
+    "service.ts chỉ còn re-export; logic nằm trong domain/ và services/. Route cũ không phải đổi import.",
+    "contracts/05-ai-design/index.ts chỉ còn re-export; mọi tên export cũ vẫn có.",
+    "tsc của contracts, api, web không phát sinh lỗi mới so với trước khi tách.",
+    "Không sửa file ngoài vùng M05."
+  ],
+  "allowedSharedPaths": [],
+  "readWhenNeeded": ["docs/modules/05-ai-design.md", "docs/handoffs/05-ai-design.md"],
+  "notes": "Chỉ sửa cục bộ. Không đổi nghiệp vụ, không đổi UI, không tự push/deploy."
+}

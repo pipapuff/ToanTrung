@@ -28,3 +28,13 @@ Kho mã nguồn GitHub: `https://github.com/truongvanlong1905/ToanTrungMar` (nh�
    - Tuyệt đối không gửi thông tin cá nhân khách hàng (SĐT, email, tên công ty) sang AI bên thứ 3.
    - Gồm 2 bảng thuộc Nhóm 5: `design_requests` (hỗ trợ `lead_id` tùy chọn cho Banner độc lập, `version`, `approved_version_id`, `total_cost_micros BigInt?`) và `design_asset_versions` (`@@unique([design_request_id, version_number])`, lưu đầy đủ từng phiên bản nháp AI và bản hoàn thiện Designer).
    - Nhật ký từng lượt gọi AI (kể cả lỗi/timeout) dùng bảng chung `ai_usage_logs` tại `core.prisma` thông qua contract `recordAiUsageAttempt`. Quy tắc bắt buộc gắn Lead cho riêng phối cảnh 3D và điểm tạo ticket theo dõi tại [Q14](../decisions/OPEN_QUESTIONS.md#q14).
+
+---
+
+## 3. Cấu trúc mã sau đợt tách (task `M05-REFACTOR-STRUCTURE`)
+- **FE** `apps/web/src/modules/05-ai-design/`: `AiDesignWorkspace.tsx` (bọc provider) → `StudioContext.tsx` + `hooks/useAiDesignStudio.ts` (toàn bộ state/handler) → `layout/ toolbar/ sidebar/ canvas/ versions/ dock/ params/ modals/ notifications/` (component chỉ lấy state qua `useStudio()`). Hàm thuần ở `lib/` (`led-specs`, `read-file`, `render-live-composite`, `design-utils`), kiểu ở `types.ts`.
+- **BE** `apps/api/src/modules/05-ai-design/`: `service.ts` chỉ re-export; logic ở `domain/` (mapper, metadata, led-spec) và `services/` (query, command, generation, version, photo, provider-config).
+- **Contracts** `packages/contracts/src/05-ai-design/`: `index.ts` re-export từ `constants / dto / providers.dto / schemas / pii-guard`.
+- Chưa làm (bước tiếp theo): tách `useAiDesignStudio` thành các hook nhỏ, gom `apiRequest` vào `api/designApi.ts`, tách `providers/index.ts` (factory/catalog/config-store), tách `route.ts` theo `action`, chuyển test M05 khỏi `apps/api/src/core/__tests__/`.
+- Kiểm tra: `tsc --noEmit` ở contracts/api/web không phát sinh lỗi mới (lỗi nền do Prisma client chưa generate). Chưa chạy `test:core` và chạy UI thủ công.
+
