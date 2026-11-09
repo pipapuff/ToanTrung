@@ -100,6 +100,87 @@ const KANBAN_COLUMN_THEMES: Record<
   },
 };
 
+export function renderSourceBadge(lead: LeadItemDto) {
+  const channel = lead.contactChannel;
+  const rawSource = (
+    lead.tracking?.marketingSource ||
+    lead.selfReportedSource ||
+    CONTACT_CHANNEL_LABELS[channel] ||
+    channel ||
+    'Nhập tay'
+  ).trim();
+  const lower = rawSource.toLowerCase();
+
+  if (channel === 'zalo' || lower.includes('zalo')) {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200 text-xs font-semibold whitespace-nowrap">
+        Zalo
+      </span>
+    );
+  }
+  if (
+    channel === 'form_web' ||
+    lower.includes('form') ||
+    lower.includes('web') ||
+    lower.includes('landing')
+  ) {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-teal-50 text-teal-700 border border-teal-200 text-xs font-semibold whitespace-nowrap">
+        Website
+      </span>
+    );
+  }
+  if (
+    channel === 'hotline' ||
+    lower.includes('hotline') ||
+    lower.includes('điện thoại') ||
+    lower.includes('gọi')
+  ) {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200 text-xs font-semibold whitespace-nowrap">
+        Hotline
+      </span>
+    );
+  }
+  if (
+    channel === 'fanpage' ||
+    lower.includes('face') ||
+    lower.includes('fb') ||
+    lower.includes('fanpage') ||
+    lower.includes('meta')
+  ) {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs font-semibold whitespace-nowrap">
+        Facebook
+      </span>
+    );
+  }
+  if (
+    channel === 'google_lead_form' ||
+    lower.includes('google') ||
+    lower.includes('adwords') ||
+    lower.includes('ads')
+  ) {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold whitespace-nowrap">
+        Google Ads
+      </span>
+    );
+  }
+  if (channel === 'email' || lower.includes('mail')) {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200 text-xs font-semibold whitespace-nowrap">
+        Email
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200 text-xs font-medium whitespace-nowrap">
+      {rawSource}
+    </span>
+  );
+}
+
 export type B2bFollowUpHorizonKey =
   | 'none'
   | 'hot_under_7d'
@@ -502,7 +583,6 @@ export function LeadsWorkspace() {
   const [includeSpam, setIncludeSpam] = useState(true);
   const [overdueOnly, setOverdueOnly] = useState(false);
   const [unreceivedOnly, setUnreceivedOnly] = useState(false);
-  const [showOptionalColumns, setShowOptionalColumns] = useState(false);
   const [isReceivingLeads, setIsReceivingLeads] = useState(true);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -1633,25 +1713,6 @@ export function LeadsWorkspace() {
           )}
         </div>
 
-        {/* Right: Table column toggles */}
-        <div className="flex items-center gap-2 ml-auto">
-          {viewMode === 'table' && (
-            <button
-              type="button"
-              onClick={() => setShowOptionalColumns((prev) => !prev)}
-              aria-pressed={showOptionalColumns}
-              className={`h-7 px-2.5 rounded-lg border text-xs font-medium inline-flex items-center gap-1.5 transition ${
-                showOptionalColumns
-                  ? 'bg-blue-50 border-blue-300 text-[#1E3A8A] font-semibold'
-                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-              }`}
-              title="Đang thu gọn 3 cột: Khu vực / Địa chỉ, Chi tiết UTM, Ghi chú"
-            >
-              <Layers className="w-3 h-3" />
-              <span>{showOptionalColumns ? 'Ẩn 3 cột phụ' : 'Hiện 3 cột phụ'}</span>
-            </button>
-          )}
-        </div>
       </div>
 
       {/* Main Content: Table View vs Kanban View */}
@@ -1674,6 +1735,16 @@ export function LeadsWorkspace() {
               const horizon = getB2bFollowUpHorizon(lead);
               const editable = canEditLead(lead);
 
+              const rawPrimaryName =
+                lead.companyName || lead.contactName || 'Khách hàng mới';
+              const primaryName = rawPrimaryName.replace(/\s*\(nghi (dò|khảo) giá\)/i, '');
+              const noteSummary =
+                lead.lostReason ||
+                lead.reopenReason ||
+                lead.spamReason ||
+                lead.customProductNote ||
+                lead.initialNote;
+
               return (
                 <div
                   key={lead.id}
@@ -1681,7 +1752,7 @@ export function LeadsWorkspace() {
                     setSelectedLeadId(lead.id);
                     setLeadDetailTab('info');
                   }}
-                  className={`rounded-2xl border p-3.5 shadow-xs transition active:scale-[0.99] space-y-2.5 ${
+                  className={`rounded-2xl border p-3.5 shadow-xs transition active:scale-[0.99] space-y-2.5 cursor-pointer ${
                     lead.spamStatus !== 'NONE'
                       ? 'bg-red-50/70 border-red-300 border-l-4 border-l-red-600'
                       : `bg-white border-slate-200/90 ${STATUS_ROW_ACCENTS[lead.pipelineStatus]}`
@@ -1689,21 +1760,20 @@ export function LeadsWorkspace() {
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <h3 className="font-semibold text-slate-900 text-sm truncate">
-                        {(lead.companyName || lead.contactName || 'Khách hàng mới').replace(
-                          /\s*\(nghi (dò|khảo) giá\)/i,
-                          '',
-                        )}
+                      <h3 className="font-bold text-slate-900 text-sm truncate">
+                        {primaryName}
                       </h3>
-                      <p className="text-[13px] text-slate-600 truncate mt-0.5">
-                        {lead.projectName ? `Dự án: ${lead.projectName}` : 'Chưa cập nhật tên dự án'}
-                      </p>
-                      <span className="font-mono text-xs text-slate-500 mt-0.5 block">
-                        Mã hồ sơ: {lead.leadCode}
+                      {lead.projectName && (
+                        <p className="text-xs text-slate-500 truncate mt-0.5">
+                          DA: {lead.projectName}
+                        </p>
+                      )}
+                      <span className="font-mono text-[11px] text-[#1E3A8A] font-semibold mt-0.5 block">
+                        {lead.leadCode}
                       </span>
                     </div>
                     <span
-                      className={`px-2.5 py-1 rounded-lg border text-xs shrink-0 ${
+                      className={`px-2.5 py-1 rounded-lg border text-xs shrink-0 font-semibold ${
                         STATUS_BADGE_STYLES[lead.pipelineStatus]
                       }`}
                     >
@@ -1711,129 +1781,108 @@ export function LeadsWorkspace() {
                     </span>
                   </div>
 
-                  {/* Separated Warning Badges */}
-                  <div className="flex flex-wrap gap-1.5">
-                    {lead.spamStatus !== 'NONE' &&
-                      !(
-                        fraud.hasPriceProbeBehavior &&
-                        lead.spamStatus === 'PENDING_REVIEW' &&
-                        (!lead.spamReason ||
-                          lead.spamReason.toLowerCase().includes('khảo giá') ||
-                          lead.spamReason.toLowerCase().includes('dò giá'))
-                      ) && (
-                        <span className="px-2 py-0.5 rounded-md bg-red-600 text-white text-xs font-semibold inline-flex items-center gap-1">
-                          <Ban className="w-3 h-3" />
-                          Spam · {lead.spamStatus === 'CONFIRMED' ? 'Đã xác nhận' : 'Chờ duyệt'}
-                        </span>
+                  {/* SĐT + Zalo & Nguồn */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                    <div className="flex items-center gap-1.5 font-mono font-bold text-slate-900">
+                      <span>{lead.phone}</span>
+                      {!lead.isAnonymized && cleanDigits.length >= 9 && (
+                        <a
+                          href={`https://zalo.me/${cleanDigits}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-50 text-[#1E3A8A] border border-blue-200 text-[11px] font-bold"
+                          title={`Nhắn Zalo tới số ${lead.phone}`}
+                        >
+                          Zalo
+                        </a>
                       )}
-                    {fraud.hasPriceProbeBehavior && (
-                      <span className="px-2 py-0.5 rounded-md bg-orange-50 border border-orange-200 text-orange-800 text-xs font-semibold">
-                        Nghi dò giá
+                    </div>
+                    <div>{renderSourceBadge(lead)}</div>
+                  </div>
+
+                  {/* Sales phụ trách & Tiếp nhận */}
+                  <div className="flex items-center justify-between text-xs text-slate-600">
+                    <span>
+                      Sales: <strong className="text-slate-900">{lead.assignedSalesName || 'Chưa giao'}</strong>
+                    </span>
+                    {lead.receivedConfirmedAt ? (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
+                        <CheckCircle2 className="w-3 h-3" />
+                        Đã tiếp nhận
                       </span>
-                    )}
-                    {(lead.isDuplicateAlert || fraud.hasDuplicatePhone || fraud.duplicateProjectName) && (
-                      <span className="px-2 py-0.5 rounded-md bg-amber-50 border border-amber-200 text-amber-800 text-xs font-semibold">
-                        Trùng lặp ({fraud.duplicateProjectName ? 'Dự án' : 'SĐT'})
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
+                        <Clock className="w-3 h-3" />
+                        Chờ xác nhận
                       </span>
                     )}
                   </div>
 
-                  <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-700">
-                    <div className="flex items-center gap-1.5 font-mono font-semibold text-slate-900">
-                      <Phone className="w-4 h-4 text-[#1E3A8A]" />
-                      <span>{lead.phone}</span>
-                    </div>
-                    <span className="text-xs text-slate-500">
-                      Sales: <strong className="text-slate-800">{lead.assignedSalesName || 'Chưa giao'}</strong>
+                  {/* Sản phẩm & Khu vực */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-xs">
+                    {primaryProduct ? (
+                      <div className="flex items-center gap-1">
+                        <span className="px-2 py-0.5 rounded-md bg-blue-50 text-[#1E3A8A] border border-blue-200 text-xs font-semibold truncate max-w-[140px]">
+                          {primaryProduct.productName}
+                        </span>
+                        {extraProductsCount > 0 && (
+                          <span className="px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200 text-[11px] font-bold">
+                            +{extraProductsCount}
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-slate-400 italic">Chưa chọn SP</span>
+                    )}
+                    <span className="text-slate-700 font-medium">
+                      {lead.areaType === 'hcm'
+                        ? `TP.HCM${lead.hcmDistrict ? ` · ${lead.hcmDistrict}` : ''}`
+                        : lead.province || 'Toàn quốc'}
                     </span>
                   </div>
 
-                  {/* Main Product + +N Indicator */}
-                  {primaryProduct && (
-                    <div className="flex items-center gap-1.5">
-                      <span className="px-2.5 py-1 rounded-md bg-blue-50 text-[#1E3A8A] border border-blue-200 text-xs font-medium truncate">
-                        {primaryProduct.productName}
-                      </span>
-                      {extraProductsCount > 0 && (
-                        <span className="px-2 py-1 rounded-md bg-slate-100 text-slate-700 border border-slate-200 text-xs font-semibold shrink-0">
-                          +{extraProductsCount}
-                        </span>
-                      )}
-                    </div>
+                  {/* Ghi chú nếu có */}
+                  {noteSummary && (
+                    <p className="text-xs text-slate-500 italic bg-slate-50 p-2 rounded-lg border border-slate-100 line-clamp-2">
+                      {noteSummary}
+                    </p>
                   )}
 
-                  <div
-                    className="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <div className="flex items-center gap-2">
-                      {!lead.isAnonymized && cleanDigits.length >= 9 && (
-                        <>
-                          <a
-                            href={`tel:${cleanDigits}`}
-                            className="h-8 px-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold inline-flex items-center gap-1.5"
-                          >
-                            <Phone className="w-3.5 h-3.5" />
-                            <span>Gọi</span>
-                          </a>
-                          <a
-                            href={`https://zalo.me/${cleanDigits}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="h-8 px-2.5 rounded-xl bg-blue-50 border border-blue-200 text-[#1E3A8A] text-xs font-semibold inline-flex items-center gap-1.5"
-                          >
-                            <span>Zalo</span>
-                          </a>
-                        </>
-                      )}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedLeadId(lead.id);
-                        setLeadDetailTab('info');
-                      }}
-                      className="h-8 px-3 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-[#1E3A8A] text-xs font-semibold inline-flex items-center shadow-2xs transition"
-                    >
-                      <span>Chi tiết</span>
-                    </button>
+                  {/* Ngày liên hệ */}
+                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400">
+                    <span>
+                      {new Date(lead.contactedAt).toLocaleDateString('vi-VN')} {new Date(lead.contactedAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                    <span className="text-[#1E3A8A] font-semibold">Bấm xem chi tiết &rarr;</span>
                   </div>
                 </div>
               );
             })}
           </div>
 
-          {/* UI-01, UI-02, UI-03: Simplified 7-Column Default Desktop Table with Subtle Row Accents */}
+          {/* UI: Structured 9-Column Leads Table for B2B Flow */}
           <div className="hidden md:block bg-white border border-slate-200/90 rounded-2xl overflow-hidden shadow-2xs">
             <div className="overflow-x-auto">
-              <table
-                className={`w-full text-left border-collapse text-sm ${
-                  showOptionalColumns ? 'min-w-[1280px]' : 'table-fixed'
-                }`}
-              >
+              <table className="w-full text-left border-collapse text-sm min-w-[1150px]">
                 <thead className="bg-slate-50/90 text-slate-600 border-b border-slate-200/80 text-xs font-bold uppercase tracking-wider">
                   <tr>
-                    <th className="py-3 px-3.5 w-[21%]">Khách hàng / Dự án</th>
-                    <th className="py-3 px-3 w-[15%]">Liên hệ &amp; Nguồn / Kênh</th>
-                    <th className="py-3 px-3 w-[14%]">Sản phẩm LED</th>
-                    <th className="py-3 px-3 w-[18%]">Trạng thái &amp; Lịch theo dõi</th>
-                    <th className="py-3 px-3 w-[10%]">Sales phụ trách</th>
-                    <th className="py-3 px-3 w-[8%]">Ngày nhận</th>
-                    {showOptionalColumns && (
-                      <>
-                        <th className="py-3 px-3 w-[140px]">Khu vực / Địa chỉ</th>
-                        <th className="py-3 px-3 w-[120px]">Chi tiết UTM</th>
-                        <th className="py-3 px-3 w-[160px]">Ghi chú</th>
-                      </>
-                    )}
-                    <th className="py-3 px-3.5 text-right w-[14%]">Thao tác</th>
+                    <th className="py-3 px-3.5 w-[18%] min-w-[170px]">Khách hàng</th>
+                    <th className="py-3 px-3 w-[14%] min-w-[135px]">Số điện thoại</th>
+                    <th className="py-3 px-3 w-[10%] min-w-[95px]">Nguồn liên hệ</th>
+                    <th className="py-3 px-3 w-[12%] min-w-[125px]">Kinh doanh phụ trách</th>
+                    <th className="py-3 px-3 w-[13%] min-w-[130px]">Sản phẩm quan tâm</th>
+                    <th className="py-3 px-3 w-[10%] min-w-[100px]">Khu vực</th>
+                    <th className="py-3 px-3 w-[12%] min-w-[125px]">Trạng thái tiến độ</th>
+                    <th className="py-3 px-3 w-[11%] min-w-[110px]">Ghi chú</th>
+                    <th className="py-3 px-3.5 text-right w-[10%] min-w-[95px]">Ngày liên hệ</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200/70">
                   {paginatedLeads.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={showOptionalColumns ? 10 : 7}
+                        colSpan={9}
                         className="py-10 px-4 text-center text-slate-500 text-sm"
                       >
                         Không tìm thấy hồ sơ Lead nào phù hợp với bộ lọc hiện tại.
@@ -1845,8 +1894,6 @@ export function LeadsWorkspace() {
                       const fraud = evaluateLeadFraudCriteria(lead, leads, priceCheckAlerts);
                       const primaryProduct = lead.products[0];
                       const extraProducts = lead.products.slice(1);
-                      const horizon = getB2bFollowUpHorizon(lead);
-                      const editable = canEditLead(lead);
 
                       const isPriceShoppingReasonOnly =
                         fraud.hasPriceProbeBehavior &&
@@ -1863,7 +1910,6 @@ export function LeadsWorkspace() {
                         fraud.hasDuplicatePhone ||
                         Boolean(fraud.duplicateProjectName);
 
-                      // UC01 1.5 Kịch bản 1: Tô đỏ dòng khi trùng khách đang mở VÀ Lead hiện tại vẫn đang ở "Vừa nhận thông tin" (khi đổi trạng thái thì hết tô đỏ)
                       const isActiveRedDuplicateRow =
                         fraud.duplicateScenario === 'SCENARIO_1_ACTIVE_DUP' &&
                         lead.pipelineStatus === 'new_lead';
@@ -1871,13 +1917,6 @@ export function LeadsWorkspace() {
                       const rawPrimaryName =
                         lead.companyName || lead.contactName || 'Khách hàng chưa cập nhật tên';
                       const primaryName = rawPrimaryName.replace(/\s*\(nghi (dò|khảo) giá\)/i, '');
-                      const secondaryProject = lead.projectName
-                        ? `Dự án: ${lead.projectName}`
-                        : lead.areaType === 'hcm'
-                          ? `Khu vực: TP.HCM · ${lead.hcmDistrict || ''}`
-                          : lead.province
-                            ? `Khu vực: ${lead.province}`
-                            : 'Chưa cập nhật tên dự án';
 
                       const noteSummary =
                         lead.lostReason ||
@@ -1902,70 +1941,99 @@ export function LeadsWorkspace() {
                                 : `${STATUS_ROW_ACCENTS[lead.pipelineStatus]} hover:bg-blue-50/35`
                           }`}
                         >
-                          {/* Col 1: Customer / Project */}
-                          <td className="py-2.5 px-3.5 align-middle overflow-hidden">
+                          {/* 1. Khách hàng */}
+                          <td className="py-3 px-3.5 align-middle">
                             <div
                               className="font-bold text-slate-900 text-sm truncate"
                               title={primaryName}
                             >
                               {primaryName}
                             </div>
-                            <div
-                              className="text-[13px] text-slate-600 truncate mt-0.5"
-                              title={secondaryProject}
-                            >
-                              {secondaryProject}
-                            </div>
-                            <div className="mt-0.5 flex items-center gap-2 text-xs text-slate-500 font-mono truncate">
-                              <span className="truncate font-semibold text-[#1E3A8A]" title={lead.leadCode}>
-                                {lead.leadCode}
-                              </span>
+                            {lead.projectName && (
+                              <div
+                                className="text-xs text-slate-500 truncate mt-0.5"
+                                title={lead.projectName}
+                              >
+                                DA: {lead.projectName}
+                              </div>
+                            )}
+                            <div className="mt-0.5 flex items-center gap-1.5 text-[11px] font-mono text-slate-400">
+                              <span className="text-[#1E3A8A] font-semibold">{lead.leadCode}</span>
                               {lead.attachmentsCount > 0 && (
-                                <span className="inline-flex items-center gap-1 font-sans text-slate-500 shrink-0">
-                                  · <FileText className="w-3 h-3 text-[#1E3A8A]" />
-                                  {lead.attachmentsCount} tệp
+                                <span className="inline-flex items-center gap-0.5 text-slate-500 font-sans">
+                                  · <FileText className="w-3 h-3 text-[#1E3A8A]" /> {lead.attachmentsCount}
                                 </span>
                               )}
                             </div>
                           </td>
 
-                          {/* Col 2: Contact (Readable Name, Phone, Channel) */}
-                          <td className="py-2.5 px-3 align-middle whitespace-nowrap">
-                            <div className="font-bold font-mono text-slate-900 text-sm flex items-center gap-1.5">
-                              <Phone className="w-3.5 h-3.5 text-[#1E3A8A] shrink-0" />
-                              <span>{lead.phone}</span>
-                            </div>
-                            <div className="text-[13px] text-slate-600 truncate max-w-[155px] mt-0.5">
-                              {lead.contactName || 'Khách liên hệ'}
-                            </div>
-                            <div className="mt-1 flex items-center gap-1.5 flex-wrap">
-                              <span className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-900 border border-indigo-200/70 text-xs font-semibold truncate max-w-[155px]">
-                                {lead.tracking?.marketingSource ||
-                                  lead.selfReportedSource ||
-                                  CONTACT_CHANNEL_LABELS[lead.contactChannel] ||
-                                  lead.contactChannel}
+                          {/* 2. Số điện thoại */}
+                          <td className="py-3 px-3 align-middle whitespace-nowrap">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-bold font-mono text-slate-900 text-sm tracking-tight">
+                                {lead.phone}
                               </span>
-                              {!lead.isPhoneNormalized && (
-                                <span className="px-1.5 py-0.5 rounded bg-amber-50 border border-amber-200 text-amber-800 text-xs font-medium">
-                                  SĐT cần chuẩn hóa
+                              {!lead.isAnonymized && cleanDigits.length >= 9 && (
+                                <a
+                                  href={`https://zalo.me/${cleanDigits}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-50 hover:bg-blue-100 text-[#1E3A8A] border border-blue-200 text-[11px] font-bold transition"
+                                  title={`Nhắn Zalo tới số ${lead.phone}`}
+                                >
+                                  Zalo
+                                </a>
+                              )}
+                            </div>
+                            {lead.contactName && (
+                              <div
+                                className="text-xs text-slate-500 truncate mt-0.5 max-w-[130px]"
+                                title={lead.contactName}
+                              >
+                                {lead.contactName}
+                              </div>
+                            )}
+                          </td>
+
+                          {/* 3. Nguồn liên hệ */}
+                          <td className="py-3 px-3 align-middle whitespace-nowrap">
+                            {renderSourceBadge(lead)}
+                          </td>
+
+                          {/* 4. Kinh doanh phụ trách */}
+                          <td className="py-3 px-3 align-middle whitespace-nowrap">
+                            <div className="font-semibold text-slate-900 text-sm">
+                              {lead.assignedSalesName || 'Chưa phân công'}
+                            </div>
+                            <div className="mt-1">
+                              {lead.receivedConfirmedAt ? (
+                                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md">
+                                  <CheckCircle2 className="w-3 h-3" />
+                                  Đã tiếp nhận
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-md">
+                                  <Clock className="w-3 h-3" />
+                                  Chờ nhận
                                 </span>
                               )}
                             </div>
                           </td>
 
-                          {/* Col 3: Products */}
-                          <td className="py-2.5 px-3 align-middle max-w-[175px] xl:max-w-[215px]">
+                          {/* 5. Sản phẩm quan tâm */}
+                          <td className="py-3 px-3 align-middle">
                             {primaryProduct ? (
-                              <div className="flex items-center gap-1.5 flex-wrap">
+                              <div className="flex items-center gap-1 flex-wrap">
                                 <span
-                                  className="px-2 py-1 rounded-lg bg-blue-50 text-[#1E3A8A] border border-blue-200 text-xs font-semibold truncate max-w-[135px] xl:max-w-[165px]"
+                                  className="px-2 py-0.5 rounded-md bg-blue-50 text-[#1E3A8A] border border-blue-200 text-xs font-semibold truncate max-w-[130px]"
                                   title={primaryProduct.productName}
                                 >
                                   {primaryProduct.productName}
                                 </span>
                                 {extraProducts.length > 0 && (
                                   <span
-                                    className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-bold shrink-0"
+                                    className="px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200 text-[11px] font-bold shrink-0"
                                     title={`Sản phẩm kèm theo: ${extraProducts
                                       .map((p) => p.productName)
                                       .join(', ')}`}
@@ -1975,15 +2043,39 @@ export function LeadsWorkspace() {
                                 )}
                               </div>
                             ) : (
-                              <span className="text-xs text-slate-400">Chưa chọn sản phẩm</span>
+                              <span className="text-xs text-slate-400 italic">Chưa chọn</span>
                             )}
                           </td>
 
-                          {/* Col 4: Pipeline Status & Warnings */}
-                          <td className="py-2.5 px-3 align-middle">
+                          {/* 6. Khu vực */}
+                          <td className="py-3 px-3 align-middle">
+                            <div
+                              className="text-xs font-medium text-slate-800 truncate"
+                              title={
+                                lead.areaType === 'hcm'
+                                  ? `TP.HCM · ${lead.hcmDistrict || ''}`
+                                  : lead.province || 'Toàn quốc'
+                              }
+                            >
+                              {lead.areaType === 'hcm'
+                                ? `TP.HCM${lead.hcmDistrict ? ` · ${lead.hcmDistrict}` : ''}`
+                                : lead.province || 'Toàn quốc'}
+                            </div>
+                            {lead.installationAddress && (
+                              <div
+                                className="text-[11px] text-slate-400 truncate mt-0.5 max-w-[110px]"
+                                title={lead.installationAddress}
+                              >
+                                {lead.installationAddress}
+                              </div>
+                            )}
+                          </td>
+
+                          {/* 7. Trạng thái tiến độ */}
+                          <td className="py-3 px-3 align-middle whitespace-nowrap">
                             <div className="flex flex-col items-start gap-1">
                               <span
-                                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs whitespace-nowrap ${
+                                className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg border text-xs font-semibold ${
                                   STATUS_BADGE_STYLES[lead.pipelineStatus]
                                 }`}
                               >
@@ -1991,7 +2083,6 @@ export function LeadsWorkspace() {
                                 <span>{PIPELINE_STATUS_LABELS[lead.pipelineStatus]}</span>
                               </span>
 
-                              {/* Separate Restrained Warning Pills */}
                               {hasAnyWarning && (
                                 <div
                                   className="flex flex-wrap gap-1"
@@ -2001,202 +2092,58 @@ export function LeadsWorkspace() {
                                     <button
                                       type="button"
                                       onClick={() => setInvestigativeLead(lead)}
-                                      className="px-2 py-0.5 rounded-md bg-red-600 hover:bg-red-700 border border-red-600 text-white text-[11px] font-bold inline-flex items-center gap-1 transition"
-                                      title={
-                                        lead.spamReason
-                                          ? `Lý do Spam: ${lead.spamReason}`
-                                          : 'Xem chi tiết cờ Spam'
-                                      }
+                                      className="px-1.5 py-0.5 rounded bg-red-600 hover:bg-red-700 text-white text-[10px] font-bold inline-flex items-center gap-1 transition"
+                                      title={lead.spamReason ? `Lý do: ${lead.spamReason}` : 'Cờ Spam'}
                                     >
-                                      <Ban className="w-3 h-3" />
-                                      Spam · {lead.spamStatus === 'CONFIRMED' ? 'Đã duyệt' : 'Chờ duyệt'}
+                                      <Ban className="w-2.5 h-2.5" />
+                                      Spam
                                     </button>
                                   )}
-
                                   {fraud.hasPriceProbeBehavior && (
                                     <button
                                       type="button"
                                       onClick={() => setInvestigativeLead(lead)}
-                                      className="px-2 py-0.5 rounded-md bg-orange-100 hover:bg-orange-200 border border-orange-300 text-orange-900 text-[11px] font-bold transition"
-                                      title={
-                                        fraud.priceProbeReason ||
-                                        'Xem bằng chứng nghi khảo giá / dò giá'
-                                      }
+                                      className="px-1.5 py-0.5 rounded bg-orange-100 hover:bg-orange-200 border border-orange-200 text-orange-900 text-[10px] font-bold transition"
+                                      title={fraud.priceProbeReason || 'Nghi dò giá'}
                                     >
                                       Nghi dò giá
                                     </button>
                                   )}
-
                                   {fraud.duplicateScenario === 'SCENARIO_1_ACTIVE_DUP' && (
                                     <button
                                       type="button"
                                       onClick={() => setInvestigativeLead(lead)}
-                                      className={`px-2 py-0.5 rounded-md border text-[11px] font-bold transition ${
-                                        lead.pipelineStatus === 'new_lead'
-                                          ? 'bg-rose-600 hover:bg-rose-700 border-rose-600 text-white'
-                                          : 'bg-amber-100 hover:bg-amber-200 border-amber-300 text-amber-900'
-                                      }`}
-                                      title="Kịch bản 1 (UC01 1.5): Khách gửi thông tin nhiều kênh khi Lead cũ đang mở"
+                                      className="px-1.5 py-0.5 rounded bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold transition"
+                                      title="Cảnh báo trùng Lead"
                                     >
-                                      CẢNH BÁO TRÙNG LEAD
+                                      Trùng Lead
                                     </button>
                                   )}
-
-                                  {fraud.duplicateScenario === 'SCENARIO_2_RETURNING_CUSTOMER' && (
-                                    <button
-                                      type="button"
-                                      onClick={() => setInvestigativeLead(lead)}
-                                      className="px-2 py-0.5 rounded-md bg-blue-100 hover:bg-blue-200 border border-blue-300 text-[#1E3A8A] text-[11px] font-bold transition"
-                                      title="Kịch bản 2 (UC01 1.5): Khách hàng cũ quay lại hỏi dự án mới"
-                                    >
-                                      KHÁCH CŨ QUAY LẠI
-                                    </button>
-                                  )}
-
-                                  {fraud.duplicateScenario === 'SCENARIO_3_MULTI_CONTRACTOR' && (
-                                    <button
-                                      type="button"
-                                      onClick={() => setInvestigativeLead(lead)}
-                                      className="px-2 py-0.5 rounded-md bg-purple-100 hover:bg-purple-200 border border-purple-300 text-purple-900 text-[11px] font-bold transition"
-                                      title="Kịch bản 3 (UC01 1.5): Nhiều nhà thầu cùng hỏi giá 1 dự án / công trình"
-                                    >
-                                      DỰ ÁN NHIỀU BÊN HỎI GIÁ ({fraud.projectContractors.length + 1} thầu)
-                                    </button>
-                                  )}
-
-                                  {fraud.duplicateScenario === 'NONE' &&
-                                    (lead.isDuplicateAlert ||
-                                      fraud.hasDuplicatePhone ||
-                                      fraud.duplicateProjectName) && (
-                                      <button
-                                        type="button"
-                                        onClick={() => setInvestigativeLead(lead)}
-                                        className="px-2 py-0.5 rounded-md bg-amber-100 hover:bg-amber-200 border border-amber-300 text-amber-900 text-[11px] font-bold transition"
-                                        title="Nhấn để xem đối chiếu hồ sơ trùng SĐT hoặc trùng tên dự án"
-                                      >
-                                        {fraud.duplicateProjectName
-                                          ? 'Trùng tên dự án'
-                                          : `Trùng SĐT (${fraud.phoneSubmitCount30d} lần)`}
-                                      </button>
-                                    )}
                                 </div>
                               )}
                             </div>
                           </td>
 
-                          {/* Col 5: Assigned Sales */}
-                          <td className="py-2.5 px-3 align-middle whitespace-nowrap">
-                            <div className="font-semibold text-slate-900 text-sm">
-                              {lead.assignedSalesName || 'Chưa phân bổ'}
-                            </div>
-                            {fraud.transferredFromSalesName && (
-                              <div className="mt-0.5">
-                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-indigo-50 border border-indigo-200 text-[11px] font-semibold text-indigo-800">
-                                  Chuyển từ {fraud.transferredFromSalesName}
-                                  {fraud.transferCount > 1 ? ` (${fraud.transferCount} lần)` : ''}
-                                </span>
-                              </div>
-                            )}
-                            <div className="mt-0.5">
-                              {lead.receivedConfirmedAt ? (
-                                <span className="inline-flex items-center gap-1 text-xs text-emerald-700 font-semibold">
-                                  <CheckCircle2 className="w-3.5 h-3.5" />
-                                  <span>Đã tiếp nhận</span>
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1 text-xs text-amber-700 font-semibold">
-                                  <Clock className="w-3.5 h-3.5" />
-                                  <span>Chờ xác nhận</span>
-                                </span>
-                              )}
-                            </div>
+                          {/* 8. Ghi chú */}
+                          <td className="py-3 px-3 align-middle max-w-[140px]">
+                            <p
+                              className="text-xs text-slate-600 truncate leading-relaxed"
+                              title={noteSummary}
+                            >
+                              {noteSummary}
+                            </p>
                           </td>
 
-                          {/* Col 6: Received Date */}
-                          <td className="py-2.5 px-3 align-middle whitespace-nowrap">
-                            <div className="text-sm font-semibold text-slate-800">
+                          {/* 9. Ngày liên hệ */}
+                          <td className="py-3 px-3.5 align-middle whitespace-nowrap text-right">
+                            <div className="text-xs font-semibold text-slate-800 leading-tight">
                               {new Date(lead.contactedAt).toLocaleDateString('vi-VN')}
                             </div>
-                            <div className="text-xs text-slate-500 mt-0.5">
+                            <div className="text-[11px] text-slate-400 mt-1 font-mono leading-tight">
                               {new Date(lead.contactedAt).toLocaleTimeString('vi-VN', {
                                 hour: '2-digit',
                                 minute: '2-digit',
                               })}
-                            </div>
-                          </td>
-
-                          {/* Optional Columns when toggled on */}
-                          {showOptionalColumns && (
-                            <>
-                              <td className="py-2.5 px-3 align-middle max-w-[180px]">
-                                <div className="text-sm text-slate-800 truncate">
-                                  {lead.areaType === 'hcm'
-                                    ? `TP.HCM · ${lead.hcmDistrict || ''}`
-                                    : lead.province || '—'}
-                                </div>
-                                {lead.installationAddress && (
-                                  <div className="text-xs text-slate-500 truncate mt-0.5">
-                                    {lead.installationAddress}
-                                  </div>
-                                )}
-                              </td>
-                              <td className="py-2.5 px-3 align-middle whitespace-nowrap">
-                                <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-xs font-medium">
-                                  {lead.tracking?.marketingSource ||
-                                    lead.selfReportedSource ||
-                                    CONTACT_CHANNEL_LABELS[lead.contactChannel]}
-                                </span>
-                              </td>
-                              <td className="py-2.5 px-3 align-middle max-w-[200px]">
-                                <p className="text-xs text-slate-600 truncate" title={noteSummary}>
-                                  {noteSummary}
-                                </p>
-                              </td>
-                            </>
-                          )}
-
-                          {/* Col 7: Consolidated Row Actions with Direct Edit ("Sửa / Chi tiết") */}
-                          <td
-                            className="py-2.5 px-3.5 align-middle text-right whitespace-nowrap"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <div className="inline-flex items-center justify-end gap-1">
-                              {!lead.isAnonymized && cleanDigits.length >= 9 && (
-                                <>
-                                  <a
-                                    href={`tel:${cleanDigits}`}
-                                    className="h-8 px-2 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold inline-flex items-center gap-1 transition"
-                                    title={`Gọi ${lead.phone}`}
-                                  >
-                                    <Phone className="w-3.5 h-3.5" />
-                                    <span>Gọi</span>
-                                  </a>
-                                  <a
-                                    href={`https://zalo.me/${cleanDigits}`}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="h-8 px-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#1E3A8A] border border-blue-200 text-xs font-bold inline-flex items-center transition"
-                                    title="Nhắn Zalo"
-                                  >
-                                    Zalo
-                                  </a>
-                                </>
-                              )}
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setSelectedLeadId(lead.id);
-                                  setLeadDetailTab('info');
-                                }}
-                                className="h-8 px-3 rounded-lg bg-white hover:bg-slate-50 border border-slate-200 text-[#1E3A8A] text-xs font-semibold inline-flex items-center shadow-2xs transition"
-                                title={
-                                  editable
-                                    ? 'Mở chi tiết để xem và chỉnh sửa trực tiếp thông tin Lead'
-                                    : 'Mở xem chi tiết hồ sơ Lead'
-                                }
-                              >
-                                <span>Chi tiết</span>
-                              </button>
                             </div>
                           </td>
                         </tr>
