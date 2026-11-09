@@ -422,6 +422,9 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
         {/* Header */}
         <header className="sticky top-0 z-30 h-16 shrink-0 bg-white/95 backdrop-blur-md border-b border-slate-200/90 px-3 sm:px-6 flex items-center justify-between gap-2 sm:gap-4">
           <div className="flex items-center gap-2.5 min-w-0">
+            {pathname === '/design' && (
+              <div id="studio-header-left-slot" className="hidden md:flex items-center gap-1.5" />
+            )}
             <button
               type="button"
               onClick={() => setMobileOpen(true)}

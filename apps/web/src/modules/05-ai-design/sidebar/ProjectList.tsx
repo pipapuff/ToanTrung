@@ -5,7 +5,7 @@ import { resolveAssetUrl } from '../lib/design-utils';
 import { DESIGN_TYPE_LABELS } from '@toantrung/contracts';
 import { useStudio } from '../StudioContext';
 
-export function ProjectList() {
+export function ProjectList({ fill = false }: { fill?: boolean }) {
   const {
     bulkSelectMode,
     currentProject,
@@ -29,7 +29,7 @@ export function ProjectList() {
   } = useStudio();
 
   return (
-    <div className="flex flex-col min-h-0 basis-1/2 border-b border-slate-200 p-3.5">
+    <div className={`flex flex-col min-h-0 ${fill ? 'flex-1' : 'basis-1/2'} p-3.5`}>
       <div className="mb-2 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-1.5">
           <h2 className="text-base font-semibold text-slate-900 whitespace-nowrap">Dự án</h2>

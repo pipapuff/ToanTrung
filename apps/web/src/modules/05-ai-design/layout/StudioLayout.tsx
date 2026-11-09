@@ -11,15 +11,78 @@ import { QuickEditModal } from '../modals/QuickEditModal';
 import { ConfirmModal } from '../modals/ConfirmModal';
 import { PromptModal } from '../modals/PromptModal';
 import { AiConfigModal } from '../modals/AiConfigModal';
+import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { PanelToggleButton } from '@/core/layout/PanelToggleButton';
 import { useStudio } from '../StudioContext';
 
 export function StudioLayout() {
-  const { activeWorkspaceArea } = useStudio();
+  const { activeWorkspaceArea, hiddenPanels, togglePanel, toggleZenMode } = useStudio();
+
+  // Nút ẩn/hiện nằm trên header chung (WorkspaceShell) qua portal
+  const [slots, setSlots] = useState<{ left: HTMLElement | null; right: HTMLElement | null }>({
+    left: null,
+    right: null,
+  });
+  useEffect(() => {
+    setSlots({
+      left: document.getElementById('studio-header-left-slot'),
+      right: document.getElementById('studio-header-slot'),
+    });
+  }, []);
+
+  // Phím tắt F: chế độ tập trung (bỏ qua khi đang gõ chữ)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== 'f' || e.ctrlKey || e.metaKey || e.altKey) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (/^(input|textarea|select)$/i.test(t.tagName) || t.isContentEditable)) return;
+      toggleZenMode();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [toggleZenMode]);
+
 
   return (
     <div className="flex h-full w-full flex-col bg-slate-50 font-sans text-slate-800 antialiased overflow-hidden select-none">
+      {slots.left &&
+        createPortal(
+          <PanelToggleButton
+            variant="header"
+            side="left"
+            open={!hiddenPanels.left}
+            onToggle={() => togglePanel('left')}
+            label="cột Dự án"
+            testId="toggle-left-panel"
+          />,
+          slots.left
+        )}
+      {slots.right &&
+        createPortal(
+          <>
+            <PanelToggleButton
+              variant="header"
+              side="right"
+              open={!hiddenPanels.right}
+              onToggle={() => togglePanel('right')}
+              label="cột Trợ lý AI"
+              testId="toggle-right-panel"
+            />
+            <PanelToggleButton
+              variant="header"
+              side="top"
+              open={!hiddenPanels.top}
+              onToggle={() => togglePanel('top')}
+              label="thanh công cụ"
+              testId="toggle-top-panel"
+            />
+          </>,
+          slots.right
+        )}
+
       {/* 1. COMPACT STUDIO TOOLBAR WITH 3 PROMINENT WORKSPACE AREAS */}
-      <StudioToolbar />
+      {!hiddenPanels.top && <StudioToolbar />}
 
       {/* SLEEK FLOATING WEB NOTIFICATION STACK (Success & Error Toasts) */}
       <ToastStack />

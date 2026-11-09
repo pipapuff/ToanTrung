@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, type LucideIcon } from 'lucide-react';
 
 export type PanelSide = 'left' | 'right' | 'top' | 'bottom';
 
@@ -27,6 +27,8 @@ interface PanelToggleButtonProps {
    * tay nắm nằm hẳn bên trong vùng cha thay vì cưỡi lên đường biên (tránh bị cắt).
    */
   inset?: boolean;
+  /** Chỉ cho variant header: icon tuỳ chọn (vd. PanelLeft) thay cho mũi tên. */
+  icon?: LucideIcon;
   testId?: string;
   className?: string;
 }
@@ -70,10 +72,11 @@ export function PanelToggleButton({
   variant = 'edge',
   align = 'center',
   inset = false,
+  icon,
   testId,
   className = '',
 }: PanelToggleButtonProps) {
-  const Icon = pickIcon(side, open);
+  const Icon = icon ?? pickIcon(side, open);
   const text = `${open ? 'Ẩn' : 'Hiện'} ${label}`;
 
   if (variant === 'header') {

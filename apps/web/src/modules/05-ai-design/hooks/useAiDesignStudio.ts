@@ -110,23 +110,65 @@ export function useAiDesignStudio() {
   // Responsive Mobile Switcher
 
   const [mobilePane, setMobilePane] = useState<'projects' | 'canvas' | 'assistant'>('canvas');
-  // Mở rộng ảnh: ẩn cột Dự án & Trợ lý để vùng Phối cảnh chiếm toàn bộ chiều ngang
+  // Thu gọn bố cục: ẩn/hiện riêng cột Dự án (left), cột Trợ lý AI (right), thanh công cụ trên (top)
 
-  const [focusCanvas, setFocusCanvas] = useState<boolean>(false);
+  const [hiddenPanels, setHiddenPanels] = useState<{ left: boolean; right: boolean; top: boolean }>({
+    left: false,
+    right: false,
+    top: false,
+  });
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    setFocusCanvas(window.localStorage.getItem('m05.focusCanvas') === '1');
+    try {
+      const raw = window.localStorage.getItem('m05.panels');
+      if (raw) {
+        const p = JSON.parse(raw);
+        setHiddenPanels({ left: !!p.left, right: !!p.right, top: !!p.top });
+      } else if (window.localStorage.getItem('m05.focusCanvas') === '1') {
+        // tương thích khóa cũ
+        setHiddenPanels({ left: true, right: true, top: false });
+      }
+    } catch {
+      /* bỏ qua: dùng mặc định */
+    }
   }, []);
 
-  const toggleFocusCanvas = () => {
-    setFocusCanvas((prev) => {
-      const next = !prev;
-      if (typeof window !== 'undefined')
-        window.localStorage.setItem('m05.focusCanvas', next ? '1' : '0');
+  const updatePanels = (fn: (p: { left: boolean; right: boolean; top: boolean }) => {
+    left: boolean;
+    right: boolean;
+    top: boolean;
+  }) => {
+    setHiddenPanels((prev) => {
+      const next = fn(prev);
+      try {
+        window.localStorage.setItem('m05.panels', JSON.stringify(next));
+      } catch {
+        /* bỏ qua */
+      }
       return next;
     });
   };
+
+  const togglePanel = (name: 'left' | 'right' | 'top') =>
+    updatePanels((p) => ({ ...p, [name]: !p[name] }));
+
+  // Giữ nút "Mở rộng ảnh" cũ: ẩn/hiện 2 cột bên
+  const focusCanvas = hiddenPanels.left && hiddenPanels.right;
+  const toggleFocusCanvas = () =>
+    updatePanels((p) => {
+      const v = !(p.left && p.right);
+      return { ...p, left: v, right: v };
+    });
+
+  // Chế độ tập trung: ẩn/hiện cả 3 vùng
+  const allPanelsHidden = hiddenPanels.left && hiddenPanels.right && hiddenPanels.top;
+  const toggleZenMode = () =>
+    updatePanels(() => {
+      const v = !allPanelsHidden;
+      return { left: v, right: v, top: v };
+    });
+
   // Zoom & Canvas Tools
 
   const [zoomLevel, setZoomLevel] = useState<number>(100);
@@ -1144,7 +1186,10 @@ export function useAiDesignStudio() {
     mobilePane,
     setMobilePane,
     focusCanvas,
-    setFocusCanvas,
+    hiddenPanels,
+    togglePanel,
+    allPanelsHidden,
+    toggleZenMode,
     toggleFocusCanvas,
     zoomLevel,
     setZoomLevel,

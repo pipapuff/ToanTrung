@@ -8,7 +8,7 @@ import { useStudio } from '../StudioContext';
 export function RightDock() {
   const {
     activeWorkspaceArea,
-    focusCanvas,
+    hiddenPanels,
     mobilePane,
     setActiveWorkspaceArea,
     setSideDockTab,
@@ -18,10 +18,12 @@ export function RightDock() {
   return (
     <aside
       className={`${
-        mobilePane === 'assistant' || activeWorkspaceArea === 'assistant'
-          ? 'flex w-full md:w-80 xl:w-[22rem]'
-          : focusCanvas
-            ? 'hidden'
+        hiddenPanels.right
+          ? mobilePane === 'assistant'
+            ? 'flex w-full md:hidden'
+            : 'hidden'
+          : mobilePane === 'assistant' || activeWorkspaceArea === 'assistant'
+            ? 'flex w-full md:w-80 xl:w-[22rem]'
             : 'hidden xl:flex xl:w-[22rem]'
       } shrink-0 flex-col border-l border-slate-200 bg-white h-full min-h-0`}
     >
