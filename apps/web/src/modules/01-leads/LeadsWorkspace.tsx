@@ -642,11 +642,8 @@ export function LeadsWorkspace() {
     abortControllerRef.current = controller;
 
     const qs = new URLSearchParams();
-    if (statusFilter !== 'all') qs.set('status', statusFilter);
     if (debouncedSearchQuery.trim()) qs.set('search', debouncedSearchQuery.trim());
     if (includeSpam) qs.set('includeSpam', 'true');
-    if (overdueOnly) qs.set('overdueOnly', 'true');
-    if (unreceivedOnly) qs.set('unreceived', '1');
     const url = `/api/v1/leads?${qs.toString()}`;
 
     const cached = peekApiCache<{
@@ -698,7 +695,7 @@ export function LeadsWorkspace() {
         setLoading(false);
       }
     }
-  }, [statusFilter, debouncedSearchQuery, includeSpam, overdueOnly, unreceivedOnly]);
+  }, [debouncedSearchQuery, includeSpam]);
 
   useEffect(() => {
     void fetchLeads();
@@ -731,6 +728,9 @@ export function LeadsWorkspace() {
 
   const displayedLeads = useMemo(() => {
     let list = leads;
+    if (statusFilter !== 'all') {
+      list = list.filter((l) => l.pipelineStatus === statusFilter);
+    }
     if (overdueOnly) {
       list = list.filter((l) => l.isQuoteOverdue7Days && l.spamStatus === 'NONE');
     }
@@ -754,14 +754,9 @@ export function LeadsWorkspace() {
       });
     }
     return list;
-  }, [leads, overdueOnly, unreceivedOnly, b2bHorizonFilter]);
+  }, [leads, statusFilter, overdueOnly, unreceivedOnly, b2bHorizonFilter]);
 
-  const totalFilteredCount = Math.max(
-    displayedLeads.length,
-    overdueOnly || unreceivedOnly || b2bHorizonFilter !== 'all'
-      ? displayedLeads.length
-      : totalCount,
-  );
+  const totalFilteredCount = displayedLeads.length;
   const totalPages = Math.max(1, Math.ceil(displayedLeads.length / pageSize));
   const safePage = Math.min(currentPage, totalPages);
 
