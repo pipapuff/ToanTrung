@@ -1,6 +1,6 @@
 'use client';
 
-import { Archive, Edit2, Plus, Trash2 } from 'lucide-react';
+import { Archive, Edit2, MoreHorizontal, Plus, Trash2 } from 'lucide-react';
 import { resolveAssetUrl } from '../lib/design-utils';
 import { DESIGN_TYPE_LABELS } from '@toantrung/contracts';
 import { useStudio } from '../StudioContext';
@@ -11,6 +11,7 @@ export function ProjectList({ fill = false }: { fill?: boolean }) {
     currentProject,
     filteredProjects,
     handleToggleArchiveProject,
+    openMenuProjectId,
     openQuickEditProject,
     requestBulkDeleteProjects,
     requestDeleteProject,
@@ -30,13 +31,25 @@ export function ProjectList({ fill = false }: { fill?: boolean }) {
 
   return (
     <div className={`flex flex-col min-h-0 ${fill ? 'flex-1' : 'basis-1/2'} p-3.5`}>
-      <div className="mb-2 flex items-center justify-between shrink-0">
+      <div className="mb-1.5 flex items-center justify-between gap-2 shrink-0">
         <div className="flex items-center gap-1.5">
           <h2 className="text-base font-semibold text-slate-900 whitespace-nowrap">Dự án</h2>
           <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-600">
             {filteredProjects.length}
           </span>
         </div>
+        <button
+          type="button"
+          data-testid="create-new-project-btn"
+          onClick={() => setShowCreateModal(true)}
+          className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-[#1E3A8A] px-2.5 py-1 text-xs font-bold text-white shadow-2xs transition hover:bg-[#2563EB]"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          <span>Mới</span>
+        </button>
+      </div>
+
+      <div className="mb-2 flex flex-wrap items-center gap-1 shrink-0">
         <div className="flex items-center gap-1">
           <button
             type="button"
@@ -46,19 +59,19 @@ export function ProjectList({ fill = false }: { fill?: boolean }) {
                 return !v;
               });
             }}
-            className={`rounded-lg px-2 py-1 text-xs font-semibold transition ${
+            className={`whitespace-nowrap rounded-lg px-2 py-1 text-xs font-semibold transition ${
               bulkSelectMode || selectedProjectIds.length > 0
                 ? 'bg-blue-50 text-[#1E3A8A] border border-blue-200'
                 : 'text-slate-500 hover:bg-slate-100'
             }`}
             title="Chọn nhiều dự án để xóa nhanh cùng lúc"
           >
-            {bulkSelectMode ? 'Bỏ chọn' : 'Xóa'}
+            {bulkSelectMode ? 'Bỏ chọn' : 'Chọn nhiều'}
           </button>
           <button
             type="button"
             onClick={() => setShowArchivedProjects((v) => !v)}
-            className={`rounded-lg px-2 py-1 text-xs font-semibold transition ${
+            className={`whitespace-nowrap rounded-lg px-2 py-1 text-xs font-semibold transition ${
               showArchivedProjects
                 ? 'bg-amber-100 text-amber-800'
                 : 'text-slate-500 hover:bg-slate-100'
@@ -66,15 +79,6 @@ export function ProjectList({ fill = false }: { fill?: boolean }) {
             title="Hiện/ẩn dự án đã lưu trữ"
           >
             Lưu trữ
-          </button>
-          <button
-            type="button"
-            data-testid="create-new-project-btn"
-            onClick={() => setShowCreateModal(true)}
-            className="inline-flex items-center gap-1 rounded-lg bg-[#1E3A8A] px-2.5 py-1 text-xs font-bold text-white shadow-2xs transition hover:bg-[#2563EB]"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            <span>Mới</span>
           </button>
         </div>
       </div>
@@ -123,7 +127,7 @@ export function ProjectList({ fill = false }: { fill?: boolean }) {
       </div>
 
       {/* Scrollable Project List */}
-      <div className="flex-1 min-h-0 overflow-y-auto space-y-1 pr-1">
+      <div className="flex-1 min-h-0 overflow-y-auto space-y-1 pr-1 pb-28">
         {filteredProjects.map((proj) => {
           const isSelected = proj.id === currentProject?.id;
           const isCheckedForBulk = selectedProjectIds.includes(proj.id);
@@ -172,7 +176,7 @@ export function ProjectList({ fill = false }: { fill?: boolean }) {
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
-                    <span className="truncate text-sm font-semibold text-slate-900">
+                    <span className="line-clamp-2 break-words text-sm font-semibold leading-tight text-slate-900">
                       {proj.projectName}
                     </span>
                     <span
@@ -192,42 +196,75 @@ export function ProjectList({ fill = false }: { fill?: boolean }) {
                 </div>
               </div>
 
-              {/* Direct Inline Action Buttons (Sửa, Lưu trữ, Xóa) right on the row */}
-              <div
-                className={`flex items-center gap-0.5 shrink-0 ml-1 transition-opacity ${
-                  isSelected ? 'opacity-100' : 'opacity-80 group-hover:opacity-100'
-                }`}
-                onClick={(e) => e.stopPropagation()}
-              >
+              {/* Menu thao tác (⋯): nhường chỗ cho tên dự án, vẫn đủ nhãn chữ */}
+              <div className="relative shrink-0 ml-1" onClick={(e) => e.stopPropagation()}>
                 <button
                   type="button"
-                  data-testid={`edit-project-btn-${proj.id}`}
-                  aria-label={`Sửa dự án ${proj.projectName}`}
-                  title="Sửa nhanh dự án"
-                  onClick={() => openQuickEditProject(proj)}
-                  className="rounded-lg p-1.5 text-slate-500 hover:bg-white hover:text-[#1E3A8A] hover:shadow-2xs transition"
+                  data-testid={`project-menu-btn-${proj.id}`}
+                  aria-haspopup="menu"
+                  aria-expanded={openMenuProjectId === proj.id}
+                  aria-label={`Thao tác dự án ${proj.projectName}`}
+                  title="Sửa / Lưu trữ / Xóa"
+                  onClick={() => setOpenMenuProjectId(openMenuProjectId === proj.id ? null : proj.id)}
+                  className="rounded-lg p-1.5 text-slate-500 transition hover:bg-white hover:text-[#1E3A8A] hover:shadow-2xs focus-visible:outline-2 focus-visible:outline-blue-600"
                 >
-                  <Edit2 className="h-3.5 w-3.5" />
+                  <MoreHorizontal className="h-4 w-4" />
                 </button>
-                <button
-                  type="button"
-                  aria-label={proj.isArchived ? 'Bỏ lưu trữ' : 'Lưu trữ dự án'}
-                  title={proj.isArchived ? 'Khôi phục dự án' : 'Lưu trữ dự án'}
-                  onClick={() => handleToggleArchiveProject(proj)}
-                  className="rounded-lg p-1.5 text-slate-400 hover:bg-white hover:text-amber-700 hover:shadow-2xs transition"
-                >
-                  <Archive className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  type="button"
-                  data-testid={`delete-project-btn-${proj.id}`}
-                  aria-label={`Xóa dự án ${proj.projectName}`}
-                  title="Xóa dự án"
-                  onClick={() => requestDeleteProject(proj)}
-                  className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 transition"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
+                {openMenuProjectId === proj.id && (
+                  <>
+                    <button
+                      type="button"
+                      aria-label="Đóng menu"
+                      tabIndex={-1}
+                      onClick={() => setOpenMenuProjectId(null)}
+                      className="fixed inset-0 z-20 cursor-default"
+                    />
+                    <div
+                      role="menu"
+                      className="absolute right-0 top-full z-30 mt-1 w-40 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 text-xs font-semibold shadow-lg"
+                    >
+                      <button
+                        type="button"
+                        role="menuitem"
+                        data-testid={`edit-project-btn-${proj.id}`}
+                        onClick={() => {
+                          setOpenMenuProjectId(null);
+                          openQuickEditProject(proj);
+                        }}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-slate-700 hover:bg-blue-50 hover:text-[#1E3A8A]"
+                      >
+                        <Edit2 className="h-3.5 w-3.5" />
+                        <span>Sửa nhanh</span>
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setOpenMenuProjectId(null);
+                          handleToggleArchiveProject(proj);
+                        }}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-slate-700 hover:bg-amber-50 hover:text-amber-700"
+                      >
+                        <Archive className="h-3.5 w-3.5" />
+                        <span>{proj.isArchived ? 'Khôi phục' : 'Lưu trữ'}</span>
+                      </button>
+                      <div className="my-1 border-t border-slate-100" />
+                      <button
+                        type="button"
+                        role="menuitem"
+                        data-testid={`delete-project-btn-${proj.id}`}
+                        onClick={() => {
+                          setOpenMenuProjectId(null);
+                          requestDeleteProject(proj);
+                        }}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-red-600 hover:bg-red-50"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        <span>Xóa dự án</span>
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           );

@@ -6,7 +6,6 @@ import { useStudio } from '../StudioContext';
 
 export function ParametersForm({ compact = false }: { compact?: boolean }) {
   const {
-    canUseAiDesign,
     computedLiveSpecs,
     currentProject,
     handleAspectRatioChange,
@@ -17,7 +16,6 @@ export function ParametersForm({ compact = false }: { compact?: boolean }) {
     productOptions,
     quad,
     quadEstimatedSpecs,
-    savingParams,
     setParamForm,
     setQuad,
     setUnmeasuredMode,
@@ -492,17 +490,6 @@ export function ParametersForm({ compact = false }: { compact?: boolean }) {
               {paramValidationError}
             </div>
           )}
-        </div>
-
-        <div className="pt-2 border-t border-slate-100 flex items-center justify-end gap-2">
-          <button
-            type="submit"
-            data-testid="save-project-params-btn"
-            disabled={savingParams || !canUseAiDesign}
-            className="w-full rounded-xl bg-[#1E3A8A] px-4 py-2.5 text-sm font-bold text-white shadow-xs transition hover:bg-[#2563EB] disabled:opacity-50"
-          >
-            {savingParams ? 'Đang lưu thông số...' : 'Lưu thông số dự án'}
-          </button>
         </div>
       </div>
     </form>

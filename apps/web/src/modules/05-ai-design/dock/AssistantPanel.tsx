@@ -19,16 +19,18 @@ export function AssistantPanel() {
 
   return (
     <div className="flex flex-1 flex-col min-h-0 overflow-hidden p-3">
+      {/* Vùng cuộn: tóm tắt, chọn AI, lịch sử, mẫu prompt. Ô nhập luôn ghim ở đáy. */}
+      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden pr-1">
       {/* Context Summary Card */}
       <div className="mb-2.5 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs space-y-1">
-        <div className="flex items-center justify-between">
-          <span className="font-bold text-slate-900">
+        <div className="flex items-start justify-between gap-2">
+          <span className="min-w-0 break-words font-bold text-slate-900">
             {paramForm.projectName} ({paramForm.pixelPitch})
           </span>
           <button
             type="button"
             onClick={() => setActiveWorkspaceArea('specs')}
-            className="font-semibold text-[#2563EB] hover:underline"
+            className="shrink-0 whitespace-nowrap font-semibold text-[#2563EB] hover:underline"
           >
             Sửa thông số
           </button>
@@ -50,7 +52,7 @@ export function AssistantPanel() {
 
       {/* Quick Prompt Suggestions by LED Scenario */}
       <div className="mt-3 space-y-1.5 shrink-0">
-        <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500">
+        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5 text-[11px] font-semibold text-slate-500">
           <span>Mẫu Prompt chuẩn kỹ thuật LED Toàn Trung:</span>
           <button
             type="button"
@@ -96,16 +98,17 @@ export function AssistantPanel() {
         </div>
       </div>
 
-      {/* PII Security Guard */}
+      </div>
+
+      {/* PII Security Guard (ghim cạnh ô nhập để luôn thấy cảnh báo) */}
       {piiAlert && (
-        <div className="mt-2 flex items-start gap-2 rounded-xl bg-red-50 p-2.5 text-xs text-red-700 border border-red-200">
+        <div className="mt-2 flex shrink-0 items-start gap-2 rounded-xl bg-red-50 p-2.5 text-xs text-red-700 border border-red-200">
           <ShieldAlert className="h-4 w-4 shrink-0 text-red-600 mt-0.5" />
           <span>{piiAlert}</span>
         </div>
       )}
 
-      {/* Prompt Composer */}
-      <div className="flex-1" />
+      {/* Prompt Composer (ghim ở đáy, không bị cuộn mất) */}
       <PromptComposer />
     </div>
   );

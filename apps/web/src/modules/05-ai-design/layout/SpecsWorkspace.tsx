@@ -4,8 +4,7 @@ import { ParametersForm } from '../params/ParametersForm';
 import { useStudio } from '../StudioContext';
 
 export function SpecsWorkspace() {
-  const { canUseAiDesign, handleSaveParameters, savingParams, setActiveWorkspaceArea } =
-    useStudio();
+  const { canUseAiDesign, handleSaveParameters, savingParams } = useStudio();
 
   return (
     <div className="flex-1 overflow-y-auto p-5 bg-slate-100">
@@ -23,13 +22,7 @@ export function SpecsWorkspace() {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setActiveWorkspaceArea('perspective')}
-              className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-            >
-              Quay lại Phối cảnh
-            </button>
-            <button
-              type="button"
+              data-testid="save-project-params-btn"
               onClick={() => void handleSaveParameters()}
               disabled={savingParams || !canUseAiDesign}
               className="rounded-xl bg-[#1E3A8A] px-4 py-2 text-sm font-bold text-white shadow-xs hover:bg-[#2563EB] disabled:opacity-50"

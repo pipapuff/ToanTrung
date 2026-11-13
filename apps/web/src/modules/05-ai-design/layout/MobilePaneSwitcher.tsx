@@ -10,7 +10,7 @@ export function MobilePaneSwitcher() {
       {[
         { id: 'projects' as const, label: 'Dự án & Kho ảnh' },
         { id: 'canvas' as const, label: 'Phối cảnh' },
-        { id: 'assistant' as const, label: 'Trợ lý & Thông số' },
+        { id: 'assistant' as const, label: 'Tạo ảnh AI' },
       ].map((tab) => (
         <button
           key={tab.id}

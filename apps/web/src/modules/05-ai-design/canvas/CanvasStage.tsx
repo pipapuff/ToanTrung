@@ -34,6 +34,10 @@ export function CanvasStage() {
     zoomLevel,
   } = useStudio();
 
+  // Khung neo 4 góc đặt trên ảnh hiện trạng, nên chỉ hiện ở "Ảnh gốc" và "Ghép 3D".
+  // Ở "Kết quả AI"/"So sánh" ảnh đã render nên 4 chấm sẽ lệch khỏi màn hình LED trong ảnh.
+  const canPlaceQuad = !isBannerProject && (viewMode === 'original' || viewMode === 'live_3d');
+
   return (
     <div
       ref={canvasContainerRef}
@@ -160,7 +164,7 @@ export function CanvasStage() {
       )}
 
       {/* Interactive 4-Corner Placement Quad Overlay for 3D Perspective */}
-      {!isBannerProject && showHandles && (
+      {canPlaceQuad && showHandles && (
         <div className="absolute inset-0 pointer-events-none">
           <svg className="absolute inset-0 h-full w-full pointer-events-none">
             <polygon
@@ -259,7 +263,7 @@ export function CanvasStage() {
 
       {/* Top-Right Canvas Controls (Placement Handles & Fullscreen) */}
       <div className="absolute right-3 top-3 flex items-center gap-1.5 rounded-xl bg-slate-900/80 p-1 backdrop-blur-xs text-white text-xs">
-        {!isBannerProject && (
+        {canPlaceQuad && (
           <button
             type="button"
             onClick={() => setShowHandles(!showHandles)}

@@ -7,13 +7,13 @@ export function ChatHistory() {
   const { aiConnected, currentProject, selectedModelId } = useStudio();
 
   return (
-    <div className="min-h-0 shrink space-y-3 overflow-y-auto pr-1 text-sm">
+    <div className="space-y-3 text-sm">
       {currentProject?.chatMessages.map((msg) => {
         const isUser = msg.role === 'user';
         return (
           <div key={msg.id} className="space-y-1">
             <div className="flex items-center justify-between text-xs font-semibold text-slate-500">
-              <span>{isUser ? 'Yêu cầu' : `Kết quả AI (${msg.modelUsed || selectedModelId})`}</span>
+              <span>{isUser ? 'Yêu cầu đã gửi' : `Kết quả AI (${msg.modelUsed || selectedModelId})`}</span>
               {msg.versionNumber && (
                 <span className="rounded bg-blue-100 px-1.5 py-0.2 text-[11px] font-bold text-[#1E3A8A]">
                   Phiên bản v{msg.versionNumber}
@@ -21,7 +21,7 @@ export function ChatHistory() {
               )}
             </div>
             <div
-              className={`rounded-xl p-3 leading-relaxed text-sm ${
+              className={`break-words rounded-xl p-3 leading-relaxed text-sm ${
                 isUser
                   ? 'bg-slate-100 text-slate-900'
                   : msg.status === 'timeout' || msg.status === 'failed'

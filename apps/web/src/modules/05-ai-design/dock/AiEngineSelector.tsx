@@ -17,10 +17,18 @@ export function AiEngineSelector() {
     setShowAiConfigModal,
   } = useStudio();
 
+  const providerLabel =
+    providerStatus?.availableProviders?.find((p) => p.providerId === selectedProviderId)
+      ?.shortName || selectedProviderId;
+  const modelLabel =
+    providerStatus?.availableProviders
+      ?.find((p) => p.providerId === selectedProviderId)
+      ?.models.find((m) => m.id === selectedModelId)?.name || selectedModelId;
+
   return (
     <div className="mb-3 rounded-xl border border-blue-200/80 bg-blue-50/40 p-2.5 text-xs space-y-2 shrink-0">
-      <div className="flex items-center justify-between">
-        <span className="inline-flex items-center gap-1.5 font-bold text-[#1E3A8A]">
+      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5">
+        <span className="inline-flex min-w-0 items-center gap-1.5 font-bold text-[#1E3A8A]">
           <Cpu className="h-3.5 w-3.5 text-[#2563EB]" />
           <span>Chọn Con AI & Model thực thi</span>
         </span>
@@ -37,19 +45,20 @@ export function AiEngineSelector() {
             }
             setShowAiConfigModal(true);
           }}
-          className="inline-flex items-center gap-1 rounded-md bg-white px-2 py-0.5 text-[11px] font-bold text-[#2563EB] border border-blue-200 hover:bg-blue-50"
+          className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md bg-white px-2 py-0.5 text-[11px] font-bold text-[#2563EB] border border-blue-200 hover:bg-blue-50"
         >
           <KeyRound className="h-3 w-3" />
           <span>Cấu hình Đa AI</span>
         </button>
       </div>
 
-      <div className="grid grid-cols-2 gap-1.5">
+      <div className="grid grid-cols-1 gap-2">
         <div>
-          <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">
+          <label className="block text-[11px] font-semibold text-slate-500 mb-0.5">
             Nền tảng AI (Provider)
           </label>
           <select
+            title={providerLabel}
             data-testid="ai-provider-select"
             value={selectedProviderId}
             onChange={(e) => {
@@ -60,7 +69,7 @@ export function AiEngineSelector() {
                 setSelectedModelId(cat.activeModel || cat.models[0].id);
               }
             }}
-            className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-800 focus:border-[#2563EB] focus:outline-none"
+            className="w-full min-w-0 truncate rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-800 focus:border-[#2563EB] focus:outline-none"
           >
             {(providerStatus?.availableProviders || []).map((prov) => (
               <option key={prov.providerId} value={prov.providerId}>
@@ -71,14 +80,15 @@ export function AiEngineSelector() {
         </div>
 
         <div>
-          <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">
+          <label className="block text-[11px] font-semibold text-slate-500 mb-0.5">
             Mô hình (Model)
           </label>
           <select
+            title={modelLabel}
             data-testid="ai-model-select"
             value={selectedModelId}
             onChange={(e) => setSelectedModelId(e.target.value)}
-            className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-800 focus:border-[#2563EB] focus:outline-none"
+            className="w-full min-w-0 truncate rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-800 focus:border-[#2563EB] focus:outline-none"
           >
             {(
               providerStatus?.availableProviders?.find((p) => p.providerId === selectedProviderId)

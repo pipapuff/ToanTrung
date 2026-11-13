@@ -9,6 +9,7 @@ import {
   BarChart3,
   Bell,
   CheckCheck,
+  ChevronUp,
   Clock,
   Crosshair,
   FileSpreadsheet,
@@ -94,11 +95,14 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   const [loadingBell, setLoadingBell] = useState(false);
   const [tip, setTip] = useState<{ label: string; top: number } | null>(null);
   const bellRef = useRef<HTMLDivElement | null>(null);
+  const [accountOpen, setAccountOpen] = useState(false);
+  const accountRef = useRef<HTMLDivElement | null>(null);
 
   // Tự thu gọn sidebar ở /design, tự mở ở các trang còn lại
   useEffect(() => {
     setSidebarCollapsed(isDesignRoute(pathname));
     setTip(null);
+    setAccountOpen(false);
   }, [pathname]);
 
   useEffect(() => {
@@ -141,6 +145,25 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
       document.removeEventListener('keydown', onKeyDown);
     };
   }, [bellOpen]);
+
+  // Đóng menu tài khoản khi bấm ra ngoài hoặc nhấn Escape
+  useEffect(() => {
+    if (!accountOpen) return;
+    const onMouseDown = (e: MouseEvent) => {
+      if (accountRef.current && !accountRef.current.contains(e.target as Node)) {
+        setAccountOpen(false);
+      }
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setAccountOpen(false);
+    };
+    document.addEventListener('mousedown', onMouseDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onMouseDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [accountOpen]);
 
   // Đóng drawer mobile bằng Escape
   useEffect(() => {
@@ -194,7 +217,6 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
 
   const personalNav: NavItem[] = [
     { href: '/notifications', label: 'Thông báo', icon: Bell, badge: unreadCount },
-    { href: '/profile', label: 'Tài khoản', icon: UserCircle2 },
   ];
 
   const systemNav: NavItem[] = [
@@ -236,10 +258,17 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
     setTip({ label, top: r.top + r.height / 2 });
   };
 
-  const renderNavList = (items: NavItem[]) => {
+  const renderNavList = (items: NavItem[], sectionLabel?: string) => {
     if (items.length === 0) return null;
     return (
       <div className="space-y-1">
+        {sectionLabel && (
+          <p
+            className={`px-3.5 pb-1 pt-0.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500 ${labelHidden}`}
+          >
+            {sectionLabel}
+          </p>
+        )}
         {items.map((item) => {
           const Icon = item.icon;
           const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -366,35 +395,92 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* Điều hướng */}
-        <nav className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-3 py-3 space-y-1.5">
-          {renderNavList(visibleWorkNav)}
+        <nav
+          aria-label="Điều hướng chính"
+          className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-3 py-3 space-y-1.5 [scrollbar-width:thin]"
+        >
+          {renderNavList(visibleWorkNav, 'Nghiệp vụ')}
           <div className="border-t border-slate-800/60 my-2" />
-          {renderNavList(personalNav)}
           {visibleSystemNav.length > 0 && (
             <>
               <div className="border-t border-slate-800/60 my-2" />
-              {renderNavList(visibleSystemNav)}
+              {renderNavList(visibleSystemNav, 'Hệ thống')}
             </>
           )}
         </nav>
 
-        {/* Tóm tắt tài khoản */}
-        <div className="p-3 shrink-0 border-t border-slate-800/70">
-          <Link
-            href="/profile"
-            title={`${user.fullName} (${user.email})`}
-            className={`flex items-center gap-2.5 rounded-xl p-1.5 hover:bg-white/5 transition-colors ${
+        {/* Tài khoản: bấm vào tên để mở menu (Thông tin tài khoản, Đăng xuất) */}
+        <div ref={accountRef} className="relative shrink-0 border-t border-slate-800/70 p-3">
+          {accountOpen && (
+            <div
+              role="menu"
+              aria-label="Menu tài khoản"
+              className={`absolute z-[60] overflow-hidden rounded-2xl border border-slate-700/80 bg-[#111d33] p-1.5 shadow-2xl bottom-full left-3 right-3 mb-2 ${
+                sidebarCollapsed ? 'lg:bottom-3 lg:left-full lg:right-auto lg:mb-0 lg:ml-3 lg:w-64' : ''
+              }`}
+            >
+              <p
+                className="truncate px-3 pb-1.5 pt-2 text-xs text-slate-400"
+                title={user.email}
+              >
+                {user.email}
+              </p>
+              <Link
+                href="/profile"
+                role="menuitem"
+                onClick={() => {
+                  setAccountOpen(false);
+                  setMobileOpen(false);
+                }}
+                className={`flex h-10 items-center gap-3 rounded-lg px-3 text-sm transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-blue-400 ${
+                  pathname.startsWith('/profile') ? 'bg-white/10 text-white' : 'text-slate-200'
+                }`}
+              >
+                <UserCircle2 className="h-4 w-4 shrink-0 text-slate-400" />
+                <span>Thông tin tài khoản</span>
+              </Link>
+              <div className="my-1 border-t border-slate-700/70" />
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setAccountOpen(false);
+                  void logout();
+                }}
+                className="flex h-10 w-full items-center gap-3 rounded-lg px-3 text-left text-sm text-slate-200 transition-colors hover:bg-red-500/10 hover:text-red-300 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-red-400"
+              >
+                <LogOut className="h-4 w-4 shrink-0" />
+                <span>Đăng xuất</span>
+              </button>
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={() => {
+              setTip(null);
+              setAccountOpen((v) => !v);
+            }}
+            onMouseEnter={(e) => !accountOpen && showTip(e, user.fullName)}
+            onFocus={(e) => !accountOpen && showTip(e, user.fullName)}
+            onMouseLeave={() => setTip(null)}
+            onBlur={() => setTip(null)}
+            aria-haspopup="menu"
+            aria-expanded={accountOpen}
+            aria-label={`Tài khoản ${user.fullName}`}
+            title={sidebarCollapsed ? undefined : `${user.fullName} (${user.email})`}
+            className={`flex w-full items-center gap-2.5 rounded-xl p-1.5 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-blue-400 ${
               sidebarCollapsed ? 'lg:justify-center' : ''
-            }`}
+            } ${accountOpen ? 'bg-white/10' : 'hover:bg-white/5'}`}
           >
             {user.avatarUrl ? (
               <img
                 src={user.avatarUrl}
-                alt={user.fullName}
-                className="w-8 h-8 rounded-full object-cover border border-slate-700 shrink-0"
+                alt=""
+                className="w-9 h-9 rounded-full object-cover border border-slate-700 shrink-0"
               />
             ) : (
-              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-extrabold text-xs grid place-items-center shrink-0">
+              <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-extrabold text-xs grid place-items-center shrink-0">
                 {getInitials(user.fullName)}
               </div>
             )}
@@ -402,7 +488,13 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
               <p className="text-sm font-semibold text-white truncate">{user.fullName}</p>
               <p className="text-xs text-slate-400 truncate">{user.roleName}</p>
             </div>
-          </Link>
+            <ChevronUp
+              aria-hidden
+              className={`h-4 w-4 shrink-0 text-slate-400 transition-transform duration-150 ${
+                accountOpen ? '' : 'rotate-180'
+              } ${labelHidden}`}
+            />
+          </button>
         </div>
 
         {/* Tooltip khi thu gọn: định vị theo toạ độ nên không bị cắt bởi overflow của <nav> */}
@@ -422,9 +514,6 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
         {/* Header */}
         <header className="sticky top-0 z-30 h-16 shrink-0 bg-white/95 backdrop-blur-md border-b border-slate-200/90 px-3 sm:px-6 flex items-center justify-between gap-2 sm:gap-4">
           <div className="flex items-center gap-2.5 min-w-0">
-            {pathname === '/design' && (
-              <div id="studio-header-left-slot" className="hidden md:flex items-center gap-1.5" />
-            )}
             <button
               type="button"
               onClick={() => setMobileOpen(true)}
@@ -454,14 +543,6 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-            {/*
-              Slot cho các nút ẩn/hiện của trang Thiết kế 3D (AiDesignWorkspace đưa vào qua portal).
-              Dùng <PanelToggleButton variant="header" /> để đồng bộ giao diện với tay nắm của sidebar.
-            */}
-            {pathname === '/design' && (
-              <div id="studio-header-slot" className="flex items-center gap-1.5" />
-            )}
-
             {/* Chuông thông báo */}
             <div ref={bellRef} className="relative">
               <button
@@ -562,41 +643,6 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
                   </div>
                 </div>
               )}
-            </div>
-
-            {/* Avatar + đăng xuất, tách bằng vạch ngăn để tránh bấm nhầm */}
-            <div className="flex items-center gap-2 sm:gap-3 sm:pl-3 sm:ml-1 sm:border-l sm:border-slate-200">
-              <Link
-                href="/profile"
-                title={`${user.fullName} (${user.email})`}
-                className="hidden sm:flex items-center gap-2 h-9 pl-1.5 pr-3 rounded-full border border-slate-200 bg-white hover:border-blue-300 transition-colors"
-              >
-                {user.avatarUrl ? (
-                  <img
-                    src={user.avatarUrl}
-                    alt={user.fullName}
-                    className="w-6 h-6 rounded-full object-cover border border-slate-200 shrink-0"
-                  />
-                ) : (
-                  <span className="w-6 h-6 rounded-full bg-blue-100 text-[#1E3A8A] font-bold text-[11px] grid place-items-center shrink-0">
-                    {getInitials(user.fullName)}
-                  </span>
-                )}
-                <span className="hidden md:inline text-xs font-semibold text-slate-700 max-w-[130px] truncate">
-                  {user.fullName}
-                </span>
-              </Link>
-
-              <button
-                type="button"
-                onClick={() => void logout()}
-                title="Đăng xuất"
-                aria-label="Đăng xuất"
-                className="h-9 px-2.5 sm:px-3 rounded-xl border border-slate-200 bg-white hover:bg-red-50 hover:border-red-200 text-slate-600 hover:text-red-600 text-xs font-semibold inline-flex items-center gap-1.5 transition-colors"
-              >
-                <LogOut className="w-3.5 h-3.5" />
-                <span className="hidden xl:inline">Đăng xuất</span>
-              </button>
             </div>
           </div>
         </header>

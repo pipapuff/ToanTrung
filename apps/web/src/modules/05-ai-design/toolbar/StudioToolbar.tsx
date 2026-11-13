@@ -11,7 +11,6 @@ import {
   Minimize2,
   Monitor,
   Settings2,
-  Sparkles,
   Trash2,
 } from 'lucide-react';
 import { useStudio } from '../StudioContext';
@@ -38,7 +37,6 @@ export function StudioToolbar() {
     setConfigModalProviderId,
     setMobilePane,
     setShowAiConfigModal,
-    setSideDockTab,
     toggleFocusCanvas,
   } = useStudio();
 
@@ -56,31 +54,6 @@ export function StudioToolbar() {
         >
           {currentProject ? currentProject.projectName : 'Dự án thiết kế'}
         </span>
-
-        {currentProject && (
-          <div className="flex items-center gap-1 shrink-0">
-            <button
-              type="button"
-              data-testid="toolbar-quick-edit-project-btn"
-              onClick={() => openQuickEditProject(currentProject)}
-              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50/80 px-2 py-1 text-xs font-semibold text-slate-700 hover:border-blue-300 hover:bg-blue-50 hover:text-[#1E3A8A] transition"
-              title="Sửa nhanh tên dự án, loại thiết kế, Lead liên kết & kích thước"
-            >
-              <Edit2 className="h-3 w-3" />
-              <span className="hidden sm:inline">Sửa</span>
-            </button>
-            <button
-              type="button"
-              data-testid="toolbar-quick-delete-project-btn"
-              onClick={() => requestDeleteProject(currentProject)}
-              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50/80 px-2 py-1 text-xs font-semibold text-slate-600 hover:border-red-200 hover:bg-red-50 hover:text-red-600 transition"
-              title="Xóa dự án đang chọn"
-            >
-              <Trash2 className="h-3 w-3" />
-              <span className="hidden xl:inline">Xóa</span>
-            </button>
-          </div>
-        )}
 
         {currentProject?.leadCode && (
           <a
@@ -121,31 +94,10 @@ export function StudioToolbar() {
         <button
           type="button"
           role="tab"
-          data-testid="workspace-tab-assistant"
-          aria-selected={activeWorkspaceArea === 'assistant'}
-          onClick={() => {
-            setActiveWorkspaceArea('assistant');
-            setSideDockTab('assistant');
-            setMobilePane('assistant');
-          }}
-          className={`flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
-            activeWorkspaceArea === 'assistant'
-              ? 'bg-[#1E3A8A] text-white shadow-xs'
-              : 'text-slate-600 hover:bg-white hover:text-slate-900'
-          }`}
-        >
-          <Sparkles className="h-4 w-4" />
-          <span>Tạo ảnh AI</span>
-        </button>
-
-        <button
-          type="button"
-          role="tab"
           data-testid="workspace-tab-specs"
           aria-selected={activeWorkspaceArea === 'specs'}
           onClick={() => {
             setActiveWorkspaceArea('specs');
-            setSideDockTab('specs');
           }}
           className={`flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
             activeWorkspaceArea === 'specs'
@@ -160,22 +112,6 @@ export function StudioToolbar() {
 
       {/* Right: Provider Status, Excel Export, ZIP Download & Approve Final */}
       <div className="flex shrink-0 items-center gap-1.5">
-        <button
-          type="button"
-          onClick={toggleFocusCanvas}
-          aria-pressed={focusCanvas}
-          title={
-            focusCanvas ? 'Hiện lại cột Dự án và Trợ lý AI' : 'Ẩn hai cột bên để xem ảnh to hơn'
-          }
-          className={`hidden md:inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold border transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3A8A] ${
-            focusCanvas
-              ? 'bg-[#1E3A8A] text-white border-[#1E3A8A]'
-              : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-          }`}
-        >
-          {focusCanvas ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-          <span className="hidden xl:inline">{focusCanvas ? 'Thu nhỏ ảnh' : 'Mở rộng ảnh'}</span>
-        </button>
         <button
           type="button"
           data-testid="open-multi-ai-hub-btn"

@@ -43,11 +43,7 @@ export function StudioLayout() {
           onToggle={() => togglePanel('top')}
           label="thanh công cụ"
           testId="toggle-top-panel"
-          className={`absolute left-1/2 z-40 -translate-x-1/2 shadow-sm ${
-            hiddenPanels.top
-              ? 'top-0 translate-y-0'
-              : 'top-full -translate-y-1/2'
-          }`}
+          className="absolute right-3 top-full z-40 mt-1 hidden shadow-sm md:grid"
         />
       </div>
 

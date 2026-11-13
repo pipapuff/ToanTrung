@@ -1,6 +1,6 @@
 'use client';
 
-import { Download, FolderOpen, Image as ImageIcon, Upload } from 'lucide-react';
+import { Download, Edit2, FolderOpen, Image as ImageIcon, Trash2, Upload } from 'lucide-react';
 import { resolveAssetUrl } from '../lib/design-utils';
 import { apiRequest } from '@/core/http/client';
 import { useStudio } from '../StudioContext';
@@ -133,7 +133,7 @@ export function AssetLibrary() {
                     <div className="p-1.5 text-xs">
                       <div className="truncate font-semibold text-slate-800">{photo.name}</div>
                       <div
-                        className="mt-1 flex items-center justify-between text-[11px] text-slate-500"
+                        className="mt-1 flex items-center gap-0.5 text-[11px] text-slate-500"
                         onClick={(e) => e.stopPropagation()}
                       >
                         <button
@@ -163,19 +163,24 @@ export function AssetLibrary() {
                               },
                             });
                           }}
-                          className="hover:text-[#2563EB]"
+                          title="Đổi tên ảnh"
+                          aria-label={`Đổi tên ảnh ${photo.name}`}
+                          className="rounded-md p-1.5 text-slate-500 transition hover:bg-slate-100 hover:text-[#2563EB]"
                         >
-                          Đổi tên
+                          <Edit2 className="h-3.5 w-3.5" />
                         </button>
                         <a
                           href={resolvedSrc}
                           download={photo.name}
                           target="_blank"
                           rel="noreferrer"
-                          className="hover:text-[#1E3A8A]"
+                          title="Tải ảnh về máy"
+                          aria-label={`Tải ảnh ${photo.name}`}
+                          className="rounded-md p-1.5 text-slate-500 transition hover:bg-slate-100 hover:text-[#1E3A8A]"
                         >
-                          Tải
+                          <Download className="h-3.5 w-3.5" />
                         </a>
+                        <span className="flex-1" />
                         <button
                           type="button"
                           onClick={() => {
@@ -199,9 +204,11 @@ export function AssetLibrary() {
                               },
                             });
                           }}
-                          className="hover:text-red-600"
+                          title="Xóa ảnh khỏi kho"
+                          aria-label={`Xóa ảnh ${photo.name}`}
+                          className="rounded-md p-1.5 text-slate-400 transition hover:bg-red-50 hover:text-red-600"
                         >
-                          Xóa
+                          <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       </div>
                     </div>
@@ -318,17 +325,21 @@ export function AssetLibrary() {
                               },
                             });
                           }}
-                          className="hover:text-[#2563EB]"
+                          title="Đổi tên / ghi chú phiên bản"
+                          aria-label={`Đổi tên phiên bản v${ver.versionNumber}`}
+                          className="rounded-md p-1.5 text-slate-500 transition hover:bg-slate-100 hover:text-[#2563EB]"
                         >
-                          Đổi tên
+                          <Edit2 className="h-3.5 w-3.5" />
                         </button>
                         <a
                           href={thumbUrl}
                           target="_blank"
                           rel="noreferrer"
-                          className="font-semibold text-[#1E3A8A] hover:underline"
+                          title="Tải ảnh phiên bản"
+                          aria-label={`Tải ảnh phiên bản v${ver.versionNumber}`}
+                          className="rounded-md p-1.5 text-[#1E3A8A] transition hover:bg-blue-50"
                         >
-                          Tải ảnh
+                          <Download className="h-3.5 w-3.5" />
                         </a>
                       </div>
                     </div>
