@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { ChevronDown, ChevronUp, FolderOpen, FolderKanban, Images } from 'lucide-react';
 import { ProjectList } from './ProjectList';
 import { AssetLibrary } from './AssetLibrary';
+import { PanelToggleButton } from '@/core/layout/PanelToggleButton';
 import { useStudio } from '../StudioContext';
 
 type Collapsed = 'none' | 'projects' | 'assets';
@@ -82,11 +83,22 @@ export function ProjectsSidebar() {
     <aside
       className={`${mobilePane === 'projects' ? 'flex w-full' : 'hidden'} ${
         hiddenPanels.left ? 'md:flex md:w-14' : 'md:flex md:w-56 lg:w-60 xl:w-64'
-      } shrink-0 flex-col h-full min-h-0 border-r border-slate-200 bg-white overflow-hidden transition-[width] duration-200`}
+      } relative shrink-0 flex-col h-full min-h-0 border-r border-slate-200 bg-white transition-[width] duration-200`}
     >
+      {/* Tay nắm ẩn/hiện ghim ở mép phải cột (aside không overflow-hidden để không bị cắt). */}
+      <div className="hidden md:block">
+        <PanelToggleButton
+          side="left"
+          open={!hiddenPanels.left}
+          onToggle={() => togglePanel('left')}
+          label="cột Dự án"
+          testId="toggle-left-panel"
+        />
+      </div>
+
       {/* Desktop icon rail: giữ nguyên một cột chức năng khi Sidebar được thu gọn. */}
       {hiddenPanels.left && (
-        <nav aria-label="Điều hướng dự án" className="hidden md:flex h-full w-14 shrink-0 flex-col items-center gap-2 bg-slate-50 py-3">
+        <nav aria-label="Điều hướng dự án" className="hidden md:flex h-full w-14 overflow-hidden shrink-0 flex-col items-center gap-2 bg-slate-50 py-3">
           <button type="button" onClick={() => togglePanel('left')} title="Mở Dự án" aria-label="Mở Dự án" className="grid h-10 w-10 place-items-center rounded-xl text-slate-500 hover:bg-blue-50 hover:text-[#1E3A8A]">
             <FolderKanban className="h-5 w-5" />
           </button>
@@ -97,7 +109,7 @@ export function ProjectsSidebar() {
       )}
 
       {/* Nội dung đầy đủ vẫn dùng trên mobile; desktop chỉ hiển thị khi cột mở. */}
-      <div className={`${hiddenPanels.left ? 'flex md:hidden' : 'flex'} min-h-0 flex-1 flex-col`}>
+      <div className={`${hiddenPanels.left ? 'flex md:hidden' : 'flex'} min-h-0 flex-1 flex-col overflow-hidden`}>
         {collapsed === 'projects' ? (
           <CollapsedBar title="Dự án" badge={filteredProjects.length} expandIcon={<ChevronDown className="h-3.5 w-3.5" />} onExpand={() => toggle('projects')} testId="expand-projects-section" />
         ) : (

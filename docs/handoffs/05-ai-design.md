@@ -38,3 +38,10 @@ Kho mã nguồn GitHub: `https://github.com/truongvanlong1905/ToanTrungMar` (nh�
 - Chưa làm (bước tiếp theo): tách `useAiDesignStudio` thành các hook nhỏ, gom `apiRequest` vào `api/designApi.ts`, tách `providers/index.ts` (factory/catalog/config-store), tách `route.ts` theo `action`, chuyển test M05 khỏi `apps/api/src/core/__tests__/`.
 - Kiểm tra: `tsc --noEmit` ở contracts/api/web không phát sinh lỗi mới (lỗi nền do Prisma client chưa generate). Chưa chạy `test:core` và chạy UI thủ công.
 
+
+---
+
+## Cập nhật 13/11/2026 — nút ẩn/hiện 2 cột bên (Studio)
+- Nguyên nhân: commit `67fa0ad` bỏ nút ẩn/hiện cột Dự án/Trợ lý AI khỏi header nhưng chưa thêm tay nắm thay thế, nên khi cột đang mở không có nút ẩn riêng.
+- Đã sửa: thêm `PanelToggleButton` (variant edge, `data-testid` `toggle-left-panel` / `toggle-right-panel`) ở mép `sidebar/ProjectsSidebar.tsx` và `dock/RightDock.tsx`; `aside` đổi sang `relative`, `overflow-hidden` chuyển xuống phần nội dung bên trong để tay nắm không bị cắt. Sửa lỗi class `text-[#1E3A8A"` thiếu `]` trong `RightDock.tsx`.
+- Kiểm tra: `tsc --noEmit` ở `apps/web` 178 lỗi trước và sau (lỗi nền, Prisma chưa generate), không phát sinh lỗi mới. Chưa chạy UI thủ công.
