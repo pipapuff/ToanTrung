@@ -124,7 +124,7 @@ export function useAiDesignStudio() {
       const raw = window.localStorage.getItem('m05.panels');
       if (raw) {
         const p = JSON.parse(raw);
-        setHiddenPanels({ left: !!p.left, right: !!p.right, top: !!p.top });
+        setHiddenPanels({ left: !!p.left, right: !!p.right, top: false });
       } else if (window.localStorage.getItem('m05.focusCanvas') === '1') {
         // tương thích khóa cũ
         setHiddenPanels({ left: true, right: true, top: false });
@@ -162,11 +162,12 @@ export function useAiDesignStudio() {
     });
 
   // Chế độ tập trung: ẩn/hiện cả 3 vùng
-  const allPanelsHidden = hiddenPanels.left && hiddenPanels.right && hiddenPanels.top;
+  // (thanh ngang phía trên luôn hiển thị, chỉ ẩn/hiện 2 cột trái/phải)
+  const allPanelsHidden = hiddenPanels.left && hiddenPanels.right;
   const toggleZenMode = () =>
     updatePanels(() => {
       const v = !allPanelsHidden;
-      return { left: v, right: v, top: v };
+      return { left: v, right: v, top: false };
     });
 
   // Zoom & Canvas Tools

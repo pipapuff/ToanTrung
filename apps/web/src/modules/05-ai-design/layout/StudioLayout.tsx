@@ -12,11 +12,10 @@ import { ConfirmModal } from '../modals/ConfirmModal';
 import { PromptModal } from '../modals/PromptModal';
 import { AiConfigModal } from '../modals/AiConfigModal';
 import { useEffect } from 'react';
-import { PanelToggleButton } from '@/core/layout/PanelToggleButton';
 import { useStudio } from '../StudioContext';
 
 export function StudioLayout() {
-  const { activeWorkspaceArea, hiddenPanels, togglePanel, toggleZenMode } = useStudio();
+  const { activeWorkspaceArea, toggleZenMode } = useStudio();
 
   // Phím tắt F: chế độ tập trung (bỏ qua khi đang gõ chữ)
   useEffect(() => {
@@ -33,18 +32,9 @@ export function StudioLayout() {
 
   return (
     <div className="flex h-full w-full flex-col bg-slate-50 font-sans text-slate-800 antialiased overflow-hidden select-none">
-      {/* Thanh công cụ có tay nắm riêng tại mép workspace, không portal lên header toàn ứng dụng. */}
-      <div className={`relative z-20 w-full shrink-0 ${hiddenPanels.top ? 'h-0' : ''}`}>
-        {!hiddenPanels.top && <StudioToolbar />}
-        <PanelToggleButton
-          variant="header"
-          side="top"
-          open={!hiddenPanels.top}
-          onToggle={() => togglePanel('top')}
-          label="thanh công cụ"
-          testId="toggle-top-panel"
-          className="absolute right-3 top-full z-40 mt-1 hidden shadow-sm md:grid"
-        />
+      {/* Thanh công cụ ngang luôn hiển thị (không có nút ẩn/hiện). */}
+      <div className="relative z-20 w-full shrink-0">
+        <StudioToolbar />
       </div>
 
       {/* SLEEK FLOATING WEB NOTIFICATION STACK (Success & Error Toasts) */}

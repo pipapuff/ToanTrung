@@ -1,11 +1,19 @@
 'use client';
 
-import { Archive, Edit2, MoreHorizontal, Plus, Trash2 } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { Archive, Edit2, ListChecks, MoreHorizontal, Plus, Search, Trash2 } from 'lucide-react';
 import { resolveAssetUrl } from '../lib/design-utils';
 import { DESIGN_TYPE_LABELS } from '@toantrung/contracts';
 import { useStudio } from '../StudioContext';
 
-export function ProjectList({ fill = false }: { fill?: boolean }) {
+export function ProjectList({
+  fill = false,
+  headerAction,
+}: {
+  fill?: boolean;
+  /** Nút đặt cạnh nút "Mới" trong header cột (vd. nút ẩn/hiện cột). */
+  headerAction?: ReactNode;
+}) {
   const {
     bulkSelectMode,
     currentProject,
@@ -31,62 +39,95 @@ export function ProjectList({ fill = false }: { fill?: boolean }) {
 
   return (
     <div className={`flex flex-col min-h-0 ${fill ? 'flex-1' : 'basis-1/2'} p-3.5`}>
-      <div className="mb-1.5 flex items-center justify-between gap-2 shrink-0">
+      {/* Header cột: tên + số đếm bên trái, nút ẩn/hiện cột ở mép phải (khớp cột Tạo ảnh AI). */}
+      <div className="mb-2.5 flex min-h-8 items-center justify-between gap-2 shrink-0">
         <div className="flex items-center gap-1.5">
           <h2 className="text-base font-semibold text-slate-900 whitespace-nowrap">Dự án</h2>
           <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-600">
             {filteredProjects.length}
           </span>
         </div>
+        {headerAction}
+      </div>
+
+      {/* Tìm kiếm + tạo mới cùng một hàng */}
+      <div className="mb-2 flex items-center gap-1.5 shrink-0">
+        <div className="relative min-w-0 flex-1">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Tìm dự án, mã Lead..."
+            aria-label="Tìm dự án"
+            value={searchProject}
+            onChange={(e) => setSearchProject(e.target.value)}
+            className="h-8 w-full rounded-xl border border-slate-200 bg-slate-50 pl-8 pr-2 text-xs text-slate-800 placeholder-slate-400 focus:border-[#2563EB] focus:bg-white focus:outline-none"
+          />
+        </div>
         <button
           type="button"
           data-testid="create-new-project-btn"
           onClick={() => setShowCreateModal(true)}
-          className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-[#1E3A8A] px-2.5 py-1 text-xs font-bold text-white shadow-2xs transition hover:bg-[#2563EB]"
+          className="inline-flex h-8 shrink-0 items-center gap-1 rounded-xl bg-[#1E3A8A] px-2.5 text-xs font-bold text-white shadow-2xs transition hover:bg-[#2563EB]"
         >
           <Plus className="h-3.5 w-3.5" />
           <span>Mới</span>
         </button>
       </div>
 
-      <div className="mb-2 flex flex-wrap items-center gap-1 shrink-0">
-        <div className="flex items-center gap-1">
+      {/* Bộ lọc (Đang làm / Lưu trữ) tách riêng khỏi chế độ chọn nhiều */}
+      <div className="mb-2 flex items-center justify-between gap-2 shrink-0">
+        <div role="group" aria-label="Lọc dự án" className="inline-flex rounded-xl bg-slate-100 p-0.5">
           <button
             type="button"
-            onClick={() => {
-              setBulkSelectMode((v) => {
-                if (v) setSelectedProjectIds([]);
-                return !v;
-              });
-            }}
-            className={`whitespace-nowrap rounded-lg px-2 py-1 text-xs font-semibold transition ${
-              bulkSelectMode || selectedProjectIds.length > 0
-                ? 'bg-blue-50 text-[#1E3A8A] border border-blue-200'
-                : 'text-slate-500 hover:bg-slate-100'
+            aria-pressed={!showArchivedProjects}
+            onClick={() => setShowArchivedProjects(false)}
+            className={`whitespace-nowrap rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
+              !showArchivedProjects
+                ? 'bg-white text-[#1E3A8A] shadow-2xs'
+                : 'text-slate-500 hover:text-slate-800'
             }`}
-            title="Chọn nhiều dự án để xóa nhanh cùng lúc"
           >
-            {bulkSelectMode ? 'Bỏ chọn' : 'Chọn nhiều'}
+            Đang làm
           </button>
           <button
             type="button"
-            onClick={() => setShowArchivedProjects((v) => !v)}
-            className={`whitespace-nowrap rounded-lg px-2 py-1 text-xs font-semibold transition ${
+            aria-pressed={showArchivedProjects}
+            onClick={() => setShowArchivedProjects(true)}
+            title="Hiện cả dự án đã lưu trữ"
+            className={`whitespace-nowrap rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
               showArchivedProjects
-                ? 'bg-amber-100 text-amber-800'
-                : 'text-slate-500 hover:bg-slate-100'
+                ? 'bg-white text-amber-700 shadow-2xs'
+                : 'text-slate-500 hover:text-slate-800'
             }`}
-            title="Hiện/ẩn dự án đã lưu trữ"
           >
             Lưu trữ
           </button>
         </div>
+        <button
+          type="button"
+          aria-pressed={bulkSelectMode}
+          onClick={() => {
+            setBulkSelectMode((v) => {
+              if (v) setSelectedProjectIds([]);
+              return !v;
+            });
+          }}
+          title={bulkSelectMode ? 'Thoát chế độ chọn nhiều' : 'Chọn nhiều dự án để xóa cùng lúc'}
+          aria-label={bulkSelectMode ? 'Thoát chế độ chọn nhiều' : 'Chọn nhiều dự án'}
+          className={`grid h-8 w-8 shrink-0 place-items-center rounded-xl border transition ${
+            bulkSelectMode || selectedProjectIds.length > 0
+              ? 'border-blue-200 bg-blue-50 text-blue-700'
+              : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-[#1E3A8A]'
+          }`}
+        >
+          <ListChecks className="h-4 w-4" />
+        </button>
       </div>
 
-      {/* Bulk Action Bar when bulkSelectMode is active or projects are ticked */}
+      {/* Thanh thao tác hàng loạt: chỉ hiện khi bật chế độ chọn nhiều */}
       {(bulkSelectMode || selectedProjectIds.length > 0) && (
-        <div className="mb-2 flex items-center justify-between rounded-xl border border-blue-200/80 bg-blue-50/60 px-2.5 py-1.5 text-xs shrink-0">
-          <label className="flex cursor-pointer items-center gap-1.5 font-semibold text-slate-700">
+        <div className="mb-2 flex items-center justify-between gap-2 rounded-xl border border-blue-200/80 bg-blue-50/60 px-2.5 py-1.5 text-xs shrink-0">
+          <label className="flex min-w-0 cursor-pointer items-center gap-1.5 font-semibold text-slate-700">
             <input
               type="checkbox"
               checked={
@@ -100,31 +141,23 @@ export function ProjectList({ fill = false }: { fill?: boolean }) {
                   setSelectedProjectIds([]);
                 }
               }}
-              className="h-3.5 w-3.5 rounded border-slate-300 text-[#1E3A8A]"
+              className="h-3.5 w-3.5 shrink-0 rounded border-slate-300 text-[#1E3A8A]"
             />
-            <span>Tất cả ({selectedProjectIds.length})</span>
+            <span className="truncate">
+              {selectedProjectIds.length > 0 ? `${selectedProjectIds.length} đã chọn` : 'Chọn tất cả'}
+            </span>
           </label>
           <button
             type="button"
             disabled={selectedProjectIds.length === 0}
             onClick={requestBulkDeleteProjects}
-            className="inline-flex items-center gap-1 rounded-lg bg-red-600 px-2.5 py-1 text-[11px] font-bold text-white shadow-2xs hover:bg-red-700 disabled:opacity-40"
+            className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-red-600 px-2.5 py-1 text-[11px] font-bold text-white shadow-2xs hover:bg-red-700 disabled:opacity-40"
           >
             <Trash2 className="h-3 w-3" />
-            <span>Xóa ({selectedProjectIds.length})</span>
+            <span>Xóa</span>
           </button>
         </div>
       )}
-
-      <div className="mb-2 shrink-0">
-        <input
-          type="text"
-          placeholder="Tìm tên dự án, mã Lead..."
-          value={searchProject}
-          onChange={(e) => setSearchProject(e.target.value)}
-          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-800 placeholder-slate-400 focus:border-[#2563EB] focus:bg-white focus:outline-none"
-        />
-      </div>
 
       {/* Scrollable Project List */}
       <div className="flex-1 min-h-0 overflow-y-auto space-y-1 pr-1 pb-28">

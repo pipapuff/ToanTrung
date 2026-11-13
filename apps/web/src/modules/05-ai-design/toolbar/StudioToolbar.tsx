@@ -112,40 +112,7 @@ export function StudioToolbar() {
 
       {/* Right: Provider Status, Excel Export, ZIP Download & Approve Final */}
       <div className="flex shrink-0 items-center gap-1.5">
-        <button
-          type="button"
-          data-testid="open-multi-ai-hub-btn"
-          onClick={() => {
-            const currentPid =
-              selectedProviderId || providerStatus?.defaultProviderId || 'google_imagen';
-            setConfigModalProviderId(currentPid);
-            const cat = providerStatus?.availableProviders?.find(
-              (p) => p.providerId === currentPid
-            );
-            if (cat) {
-              setConfigEndpointInput(cat.apiEndpoint || '');
-              setConfigCustomModelInput(cat.activeModel || selectedModelId || '');
-            }
-            setShowAiConfigModal(true);
-          }}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50/80 px-2 py-1.5 text-xs font-semibold text-[#1E3A8A] shadow-2xs transition hover:bg-blue-100"
-          title="Bấm để chuyển đổi qua lại giữa nhiều con AI (Google Imagen 3, OpenAI GPT-Image-1, FLUX.1 Pro, Stability SD 3.5, Custom AI, Studio v3) hoặc cấu hình API Key"
-        >
-          <Cpu className="h-3.5 w-3.5 text-[#2563EB]" />
-          <span className="hidden lg:inline">
-            AI:{' '}
-            {providerStatus?.availableProviders?.find((p) => p.providerId === selectedProviderId)
-              ?.shortName ||
-              providerStatus?.providerName ||
-              'Đa AI Studio'}{' '}
-            ({selectedModelId})
-          </span>
-          <span className="lg:hidden">Đổi AI</span>
-          <span className="rounded bg-[#1E3A8A] px-1.5 py-0.5 text-[10px] font-bold text-white">
-            Đổi AI
-          </span>
-        </button>
-
+        
         <details className="group relative">
           <summary className="flex cursor-pointer list-none items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs transition hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1E3A8A]">
             <FileArchive className="h-4 w-4 text-[#1E3A8A]" />

@@ -1,7 +1,17 @@
 'use client';
 
 import React from 'react';
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, type LucideIcon } from 'lucide-react';
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
+  PanelLeftClose,
+  PanelLeftOpen,
+  PanelRightClose,
+  PanelRightOpen,
+  type LucideIcon,
+} from 'lucide-react';
 
 export type PanelSide = 'left' | 'right' | 'top' | 'bottom';
 
@@ -18,8 +28,10 @@ interface PanelToggleButtonProps {
    *          Wrapper của panel PHẢI có `relative` và KHÔNG `overflow-hidden`
    *          (đặt overflow-hidden ở phần nội dung bên trong).
    * header : nút vuông trong thanh header (dùng cho portal #studio-header-slot).
+   * panel  : nút vuông bo góc, icon panel (PanelLeft/PanelRight), đặt cạnh header của cột
+   *          hoặc trên cùng thanh icon khi cột thu gọn. Chỉ cho side left/right.
    */
-  variant?: 'edge' | 'header';
+  variant?: 'edge' | 'header' | 'panel';
   /** Chỉ cho left/right: căn giữa dọc hay sát phía trên. */
   align?: 'center' | 'start';
   /**
@@ -78,6 +90,30 @@ export function PanelToggleButton({
 }: PanelToggleButtonProps) {
   const Icon = icon ?? pickIcon(side, open);
   const text = `${open ? 'Ẩn' : 'Hiện'} ${label}`;
+
+  if (variant === 'panel') {
+    const PanelIcon =
+      side === 'right'
+        ? open
+          ? PanelRightClose
+          : PanelRightOpen
+        : open
+          ? PanelLeftClose
+          : PanelLeftOpen;
+    return (
+      <button
+        type="button"
+        onClick={onToggle}
+        title={text}
+        aria-label={text}
+        aria-expanded={open}
+        data-testid={testId}
+        className={`h-8 w-8 shrink-0 rounded-xl border border-blue-200 bg-blue-50 text-blue-700 grid place-items-center transition-colors hover:border-blue-400 hover:bg-blue-100 hover:text-[#1E3A8A] active:scale-95 ${FOCUS} ${className}`}
+      >
+        <PanelIcon className="h-4 w-4" />
+      </button>
+    );
+  }
 
   if (variant === 'header') {
     return (

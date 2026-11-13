@@ -1,46 +1,86 @@
 'use client';
 
+import { useState } from 'react';
 import { Sparkles } from 'lucide-react';
 import { useStudio } from '../StudioContext';
 
+/** Yêu cầu của người dùng: bong bóng bên phải, tối đa 3 dòng, bấm để xem hết. */
+function UserBubble({ text }: { text: string }) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div className="flex justify-end">
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        aria-expanded={expanded}
+        title={expanded ? 'Thu gọn' : 'Bấm để xem đầy đủ'}
+        className={`max-w-[92%] break-words rounded-2xl rounded-br-md bg-slate-100 px-3 py-2 text-left text-sm leading-relaxed text-slate-900 ${
+          expanded ? '' : 'line-clamp-3'
+        }`}
+      >
+        {text}
+      </button>
+    </div>
+  );
+}
+
 export function ChatHistory() {
   const { aiConnected, currentProject, selectedModelId } = useStudio();
+  const messages = currentProject?.chatMessages ?? [];
+
+  if (messages.length === 0) {
+    return (
+      <p className="px-1 py-4 text-center text-xs text-slate-400">
+        Mô tả yêu cầu ở ô bên dưới hoặc bấm + để chọn mẫu prompt.
+      </p>
+    );
+  }
 
   return (
     <div className="space-y-3 text-sm">
-      {currentProject?.chatMessages.map((msg) => {
-        const isUser = msg.role === 'user';
+      {messages.map((msg) => {
+        if (msg.role === 'user') return <UserBubble key={msg.id} text={msg.text} />;
+
+        const failed = msg.status === 'timeout' || msg.status === 'failed';
+        const modelName = msg.modelUsed || selectedModelId;
+        // Kết quả thành công chỉ hiện 1 dòng meta; chỉ hiện nội dung khi lỗi/không có phiên bản.
+        const showText = failed || !msg.versionNumber;
+
         return (
           <div key={msg.id} className="space-y-1">
-            <div className="flex items-center justify-between text-xs font-semibold text-slate-500">
-              <span>{isUser ? 'Yêu cầu đã gửi' : `Kết quả AI (${msg.modelUsed || selectedModelId})`}</span>
+            <div
+              className="flex min-w-0 items-center gap-1.5 text-[11px] font-semibold text-slate-500"
+              title={[
+                modelName,
+                aiConnected && msg.durationSec != null ? `${msg.durationSec}s` : null,
+                aiConnected ? msg.cost : null,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+            >
+              <Sparkles className="h-3.5 w-3.5 shrink-0 text-[#2563EB]" />
               {msg.versionNumber && (
-                <span className="rounded bg-blue-100 px-1.5 py-0.2 text-[11px] font-bold text-[#1E3A8A]">
-                  Phiên bản v{msg.versionNumber}
+                <span className="shrink-0 rounded bg-blue-100 px-1.5 py-0.5 font-bold text-[#1E3A8A]">
+                  v{msg.versionNumber}
+                </span>
+              )}
+              {msg.tokenUsed != null && (
+                <span className="shrink-0 font-normal text-slate-400">
+                  {msg.tokenUsed} token
                 </span>
               )}
             </div>
-            <div
-              className={`break-words rounded-xl p-3 leading-relaxed text-sm ${
-                isUser
-                  ? 'bg-slate-100 text-slate-900'
-                  : msg.status === 'timeout' || msg.status === 'failed'
+            {showText && (
+              <div
+                className={`break-words rounded-xl px-3 py-2 text-sm leading-relaxed ${
+                  failed
                     ? 'border border-amber-200 bg-amber-50 text-amber-900'
-                    : 'border border-blue-100 bg-blue-50/60 text-slate-900 font-medium'
-              }`}
-            >
-              {!isUser && <Sparkles className="h-4 w-4 text-[#2563EB] inline mr-1.5 -mt-0.5" />}
-              <span>{msg.text}</span>
-              {aiConnected && msg.cost && (
-                <div className="mt-1.5 flex items-center gap-2 text-xs text-slate-500 border-t border-slate-200/60 pt-1 font-normal">
-                  <span>Thời gian: {msg.durationSec}s</span>
-                  <span>·</span>
-                  <span>Token: {msg.tokenUsed ?? '—'}</span>
-                  <span>·</span>
-                  <span>Chi phí: {msg.cost}</span>
-                </div>
-              )}
-            </div>
+                    : 'border border-blue-100 bg-blue-50/60 text-slate-900'
+                }`}
+              >
+                {msg.text}
+              </div>
+            )}
           </div>
         );
       })}

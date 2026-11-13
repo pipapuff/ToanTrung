@@ -1,14 +1,36 @@
 'use client';
 
-import { Cpu, KeyRound } from 'lucide-react';
+import { Check, KeyRound } from 'lucide-react';
 import { type AiProviderId } from '@toantrung/contracts';
 import { useStudio } from '../StudioContext';
+import { MENU_BODY, MENU_FOOTER, MENU_SURFACE, MENU_TITLE } from './menuStyles';
 
-export function AiEngineSelector() {
+const QUALITY_OPTIONS: Array<{ value: 'draft' | 'high_quality'; label: string }> = [
+  { value: 'draft', label: 'Nháp nhanh' },
+  { value: 'high_quality', label: 'Độ nét cao' },
+];
+
+/** Nhãn ngắn trên nút chọn AI: "Tên model · Chế độ". */
+export function useAiEngineLabel() {
+  const { chatQuality, providerStatus, selectedModelId, selectedProviderId } = useStudio();
+  const modelName =
+    providerStatus?.availableProviders
+      ?.find((p) => p.providerId === selectedProviderId)
+      ?.models.find((m) => m.id === selectedModelId)?.name || selectedModelId;
+  return {
+    modelName,
+    label: `${modelName} · ${chatQuality === 'draft' ? 'Nháp' : 'Nét cao'}`,
+  };
+}
+
+/** Menu của nhãn model: nền tảng (dạng chip), mô hình, chất lượng và lối vào Cấu hình Đa AI. */
+export function AiEngineMenu({ onClose }: { onClose: () => void }) {
   const {
+    chatQuality,
     providerStatus,
     selectedModelId,
     selectedProviderId,
+    setChatQuality,
     setConfigCustomModelInput,
     setConfigEndpointInput,
     setConfigModalProviderId,
@@ -17,94 +39,118 @@ export function AiEngineSelector() {
     setShowAiConfigModal,
   } = useStudio();
 
-  const providerLabel =
-    providerStatus?.availableProviders?.find((p) => p.providerId === selectedProviderId)
-      ?.shortName || selectedProviderId;
-  const modelLabel =
-    providerStatus?.availableProviders
-      ?.find((p) => p.providerId === selectedProviderId)
-      ?.models.find((m) => m.id === selectedModelId)?.name || selectedModelId;
+  const providers = providerStatus?.availableProviders || [];
+  const models = providers.find((p) => p.providerId === selectedProviderId)?.models || [
+    { id: 'imagen-3.0-generate-002', name: 'Google Imagen 3 Pro' },
+  ];
+
+  const pickProvider = (nextPid: AiProviderId) => {
+    setSelectedProviderId(nextPid);
+    const cat = providers.find((p) => p.providerId === nextPid);
+    if (cat && cat.models.length > 0) {
+      setSelectedModelId(cat.activeModel || cat.models[0].id);
+    }
+  };
+
+  const openConfig = () => {
+    setConfigModalProviderId(selectedProviderId);
+    const cat = providers.find((p) => p.providerId === selectedProviderId);
+    if (cat) {
+      setConfigEndpointInput(cat.apiEndpoint || '');
+      setConfigCustomModelInput(cat.activeModel || selectedModelId || '');
+    }
+    setShowAiConfigModal(true);
+    onClose();
+  };
 
   return (
-    <div className="mb-3 rounded-xl border border-blue-200/80 bg-blue-50/40 p-2.5 text-xs space-y-2 shrink-0">
-      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5">
-        <span className="inline-flex min-w-0 items-center gap-1.5 font-bold text-[#1E3A8A]">
-          <Cpu className="h-3.5 w-3.5 text-[#2563EB]" />
-          <span>Chọn Con AI & Model thực thi</span>
-        </span>
-        <button
-          type="button"
-          onClick={() => {
-            setConfigModalProviderId(selectedProviderId);
-            const cat = providerStatus?.availableProviders?.find(
-              (p) => p.providerId === selectedProviderId
+    <div role="menu" aria-label="Chọn AI và chế độ" className={MENU_SURFACE}>
+      <div className={MENU_BODY}>
+        <div className={MENU_TITLE}>Nền tảng AI</div>
+        <div className="flex flex-wrap gap-1 px-1 pb-1.5">
+          {providers.map((prov) => {
+            const active = prov.providerId === selectedProviderId;
+            return (
+              <button
+                key={prov.providerId}
+                type="button"
+                role="menuitemradio"
+                aria-checked={active}
+                data-testid={`ai-provider-option-${prov.providerId}`}
+                title={prov.isConfigured ? `${prov.shortName} — đã cấu hình` : prov.shortName}
+                onClick={() => pickProvider(prov.providerId)}
+                className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-semibold transition ${
+                  active
+                    ? 'border-[#1E3A8A] bg-[#1E3A8A] text-white'
+                    : 'border-blue-100 bg-white text-slate-700 hover:border-blue-300'
+                }`}
+              >
+                <span>{prov.shortName}</span>
+                {prov.isConfigured && (
+                  <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                )}
+              </button>
             );
-            if (cat) {
-              setConfigEndpointInput(cat.apiEndpoint || '');
-              setConfigCustomModelInput(cat.activeModel || selectedModelId || '');
-            }
-            setShowAiConfigModal(true);
-          }}
-          className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md bg-white px-2 py-0.5 text-[11px] font-bold text-[#2563EB] border border-blue-200 hover:bg-blue-50"
-        >
-          <KeyRound className="h-3 w-3" />
-          <span>Cấu hình Đa AI</span>
-        </button>
+          })}
+        </div>
+
+        <div className={MENU_TITLE}>Mô hình</div>
+        {models.map((m) => {
+          const active = m.id === selectedModelId;
+          return (
+            <button
+              key={m.id}
+              type="button"
+              role="menuitemradio"
+              aria-checked={active}
+              data-testid={`ai-model-option-${m.id}`}
+              onClick={() => setSelectedModelId(m.id)}
+              className={`flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-left transition ${
+                active
+                  ? 'bg-white text-[#1E3A8A] shadow-2xs'
+                  : 'text-slate-700 hover:bg-white/70'
+              }`}
+            >
+              <span className="min-w-0 flex-1 truncate font-semibold">{m.name}</span>
+              {active && <Check className="h-3.5 w-3.5 shrink-0 text-[#2563EB]" />}
+            </button>
+          );
+        })}
       </div>
 
-      <div className="grid grid-cols-1 gap-2">
-        <div>
-          <label className="block text-[11px] font-semibold text-slate-500 mb-0.5">
-            Nền tảng AI (Provider)
-          </label>
-          <select
-            title={providerLabel}
-            data-testid="ai-provider-select"
-            value={selectedProviderId}
-            onChange={(e) => {
-              const nextPid = e.target.value as AiProviderId;
-              setSelectedProviderId(nextPid);
-              const cat = providerStatus?.availableProviders?.find((p) => p.providerId === nextPid);
-              if (cat && cat.models.length > 0) {
-                setSelectedModelId(cat.activeModel || cat.models[0].id);
-              }
-            }}
-            className="w-full min-w-0 truncate rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-800 focus:border-[#2563EB] focus:outline-none"
-          >
-            {(providerStatus?.availableProviders || []).map((prov) => (
-              <option key={prov.providerId} value={prov.providerId}>
-                {prov.shortName} {prov.isConfigured ? '✓' : ''}
-              </option>
-            ))}
-          </select>
+      {/* Chân menu ghim: chất lượng + cấu hình luôn thấy, không phải cuộn */}
+      <div className={`${MENU_FOOTER} flex items-center gap-1.5`}>
+        <div
+          role="group"
+          aria-label="Chất lượng"
+          className="flex min-w-0 flex-1 rounded-lg bg-white p-0.5"
+        >
+          {QUALITY_OPTIONS.map((q) => (
+            <button
+              key={q.value}
+              type="button"
+              aria-pressed={chatQuality === q.value}
+              onClick={() => setChatQuality(q.value)}
+              className={`flex-1 whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-semibold transition ${
+                chatQuality === q.value
+                  ? 'bg-[#1E3A8A] text-white'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              {q.label}
+            </button>
+          ))}
         </div>
-
-        <div>
-          <label className="block text-[11px] font-semibold text-slate-500 mb-0.5">
-            Mô hình (Model)
-          </label>
-          <select
-            title={modelLabel}
-            data-testid="ai-model-select"
-            value={selectedModelId}
-            onChange={(e) => setSelectedModelId(e.target.value)}
-            className="w-full min-w-0 truncate rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-800 focus:border-[#2563EB] focus:outline-none"
-          >
-            {(
-              providerStatus?.availableProviders?.find((p) => p.providerId === selectedProviderId)
-                ?.models || [
-                {
-                  id: 'imagen-3.0-generate-002',
-                  name: 'Google Imagen 3 Pro',
-                },
-              ]
-            ).map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        <button
+          type="button"
+          role="menuitem"
+          onClick={openConfig}
+          title="Cấu hình Đa AI"
+          aria-label="Cấu hình Đa AI"
+          className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-white text-[#2563EB] transition hover:bg-blue-50"
+        >
+          <KeyRound className="h-3.5 w-3.5" />
+        </button>
       </div>
     </div>
   );
